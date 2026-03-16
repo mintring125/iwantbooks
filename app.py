@@ -244,7 +244,33 @@ def load_export_template_workbook():
     return workbook
 
 
+def configure_export_sheet(worksheet):
+    worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+    worksheet.page_setup.paperSize = worksheet.PAPERSIZE_A4
+    worksheet.page_setup.orientation = worksheet.ORIENTATION_LANDSCAPE
+    worksheet.page_setup.fitToWidth = 1
+    worksheet.page_setup.fitToHeight = 0
+    worksheet.page_margins.left = 0.25
+    worksheet.page_margins.right = 0.25
+    worksheet.page_margins.top = 0.35
+    worksheet.page_margins.bottom = 0.35
+    worksheet.page_margins.header = 0.2
+    worksheet.page_margins.footer = 0.2
+    worksheet.print_options.horizontalCentered = True
+    worksheet.print_title_rows = "1:2"
+    worksheet.column_dimensions["A"].width = 8
+    worksheet.column_dimensions["B"].width = 32
+    worksheet.column_dimensions["C"].width = 14
+    worksheet.column_dimensions["D"].width = 14
+    worksheet.column_dimensions["E"].width = 7
+    worksheet.column_dimensions["F"].width = 12
+    worksheet.column_dimensions["G"].width = 11
+    worksheet.row_dimensions[1].height = 42
+    worksheet.row_dimensions[2].height = 30
+
+
 def fill_export_sheet(worksheet, grade, class_num, books):
+    configure_export_sheet(worksheet)
     worksheet["A1"] = f"2026년 ( {grade} )학년 ( {class_num} )반 학생, 학부모 구입 희망도서 목록"
 
     for row_num in range(3, 43):
