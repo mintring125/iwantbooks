@@ -169,6 +169,8 @@ button, input, select {
 .grade-grid .game-btn {
     width: 100%;
     min-width: 0;
+    white-space: nowrap;
+    word-break: keep-all;
 }
 
 .helper-card {
@@ -502,6 +504,12 @@ button, input, select {
 @media (max-width: 768px) {
     .grade-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grade-grid .game-btn {
+        padding: 10px 8px;
+        font-size: 0.98rem;
+        letter-spacing: -0.02em;
     }
 
     .search-row,
