@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.env
+.env.local
+school_books.db
+instance/
+.pytest_cache/
+.omc/
+*.xlsx

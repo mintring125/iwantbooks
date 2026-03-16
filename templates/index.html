@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 희망 도서 신청</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nanum+Square+Round:wght@400;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="page-shell">
+        <header class="hero panel">
+            <h1>📚 2026 희망 도서 신청</h1>
+            <div class="mode-actions">
+                <button class="game-btn primary active" type="button" onclick="switchMode('student')">학생 모드</button>
+                <button class="game-btn" type="button" onclick="switchMode('admin')">관리자</button>
+            </div>
+        </header>
+
+        {% if not has_api_key %}
+        <div style="background:var(--alert-bg); color:var(--alert-color); padding: 10px; margin-bottom: 20px; border-radius: 8px; font-weight: bold; text-align: center; border: 2px solid var(--line);">
+            알라딘 API 키가 없어서 책 검색이 동작하지 않습니다.
+        </div>
+        {% endif %}
+
+        <main id="studentMode">
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>1️⃣ 내 자리 선택하기</h2>
+                </div>
+                <div class="picker-row">
+                    <h3>학년 선택</h3>
+                    <div class="grid-buttons grade-grid">
+                        {% for grade in grades %}
+                        <button class="game-btn" type="button" data-grade="{{ grade }}" onclick="selectGrade('{{ grade }}')">{{ grade }}학년</button>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="picker-row">
+                    <h3>반 선택</h3>
+                    <div id="classButtons" class="grid-buttons class-grid">
+                        <div class="helper-card">먼저 학년을 선택해 주세요.</div>
+                    </div>
+                </div>
+                <div class="picker-row">
+                    <h3>번호 선택</h3>
+                    <div id="numberButtons" class="grid-buttons number-grid">
+                        <div class="helper-card">반을 선택하면 번호 버튼이 열립니다.</div>
+                    </div>
+                </div>
+                <div id="selectionSummary" style="margin-top:20px; text-align:center; font-weight:bold; color:var(--btn-active-shadow);">
+                    학년, 반, 번호를 먼저 선택해야 책을 고를 수 있어요.
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>2️⃣ 책 검색하고 고르기</h2>
+                </div>
+                <div class="search-row">
+                    <input type="text" id="searchInput" class="search-input" placeholder="책 이름이나 작가를 적어보세요">
+                    <button class="game-btn primary" id="searchBtn" type="button" onclick="searchBooks()">🔍 검색</button>
+                </div>
+                <div id="loadingSpinner" class="loading-spinner hidden">
+                    책을 찾는 중입니다...
+                </div>
+                <div id="searchResults" class="book-grid">
+                    <div class="helper-card" style="grid-column: 1/-1;">보고 싶은 책을 검색해 보세요!</div>
+                </div>
+            </section>
+
+            <section class="panel basket-panel" style="position: sticky; bottom: 20px; z-index: 10;">
+                <div class="panel-head" style="margin-bottom: 10px; border:none; padding:0;">
+                    <h2>3️⃣ 다 고른 책 (<span id="selectionCount">0</span>/3권)</h2>
+                </div>
+                <div id="selectedBooks" class="selected-books">
+                    <div class="helper-card" style="padding: 6px;">아직 고른 책이 없어요.</div>
+                </div>
+                <button id="submitBtn" class="game-btn primary submit-btn" type="button" disabled onclick="submitBooks()">✅ 이대로 제출하기</button>
+            </section>
+        </main>
+
+        <main id="adminMode" class="hidden">
+            <section class="panel">
+                <div class="panel-head">
+                    <h2>⚙️ 관리자 모드</h2>
+                </div>
+                <div id="adminLoginBox" class="admin-login-box">
+                    <input type="password" id="adminPassword" class="search-input" placeholder="관리자 비밀번호">
+                    <button class="game-btn primary" type="button" onclick="adminLogin()">로그인</button>
+                </div>
+
+                <div id="adminTools" class="hidden">
+                    <div class="admin-catalog-box">
+                        <h3>📚 도서관 소장 도서 (복본 확인용)</h3>
+                        <p class="catalog-stats">현재 올라간 목록 수: <span id="catalogCount">불러오는 중...</span></p>
+                        <div style="display:flex; gap:10px; margin-top:10px;">
+                            <input type="file" id="catalogFile" accept=".xlsx,.xls,.csv" class="search-input" style="padding: 4px 8px; font-size:1rem;">
+                            <button class="game-btn primary" type="button" onclick="uploadCatalog()">파일 올리기</button>
+                            <button class="game-btn" type="button" onclick="clearCatalog()" style="background:var(--alert-bg); border-color:var(--alert-color); color:var(--alert-color);">목록 지우기</button>
+                        </div>
+                        <p style="font-size:0.85rem; color:var(--text-muted); margin-top:10px;">
+                            * 독서로 DLS에서 장서현황 목록을 엑셀로 내려받아 업로드하세요.<br>
+                            * 이 목록에 있는 도서는 학생들이 검색할 때 '⚠️ 복본'으로 표시됩니다.
+                        </p>
+                    </div>
+
+                    <div class="admin-toolbar">
+                        <div class="filter-group">
+                            <label>학년</label>
+                            <select id="adminGrade" onchange="loadAdminSubmissions()">
+                                <option value="">전체 학년</option>
+                                {% for grade in grades %}
+                                <option value="{{ grade }}">{{ grade }}학년</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>반</label>
+                            <select id="adminClass" onchange="loadAdminSubmissions()">
+                                <option value="">전체 반</option>
+                                <option value="1">1반</option>
+                                <option value="2">2반</option>
+                            </select>
+                        </div>
+                        <div style="margin-left:auto; display:flex; gap:10px; align-items:flex-end;">
+                            <span style="font-weight:bold; padding: 12px;">총 제출: <span id="adminCount">0</span>명</span>
+                            <button class="game-btn primary" type="button" onclick="downloadAdminXlsx()">엑셀 다운로드</button>
+                            <button class="game-btn" type="button" onclick="adminLogout()">로그아웃</button>
+                        </div>
+                    </div>
+
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>시간</th>
+                                    <th>학/반/번</th>
+                                    <th>도서 1지망</th>
+                                    <th>도서 2지망</th>
+                                    <th>도서 3지망</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminTableBody">
+                                <tr>
+                                    <td colspan="5" style="text-align:center;">결과가 없습니다.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 모달: 안내 메시지 -->
+    <div id="alertModal" class="modal hidden">
+        <div class="modal-content">
+            <h2 id="alertTitle">안내</h2>
+            <p id="alertMessage"></p>
+            <div class="modal-actions">
+                <button class="game-btn primary" type="button" onclick="closeAlertModal()">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 스크립트 -->
+    <script>
+        const SCHOOL_STRUCTURE = {{ school_structure|tojson }};
+
+        let selectedGrade = "";
+        let selectedClass = "";
+        let selectedNumber = "";
+        let selectedBooks = [];
+        let currentBooks = [];
+
+        document.getElementById("searchInput").addEventListener("keypress", (e) => {
+            if (e.key === "Enter") searchBooks();
+        });
+
+        function switchMode(mode) {
+            const sm = document.getElementById("studentMode");
+            const am = document.getElementById("adminMode");
+            const btns = document.querySelectorAll(".mode-actions .game-btn");
+            btns.forEach(b => b.classList.remove("active", "primary"));
+            
+            if (mode === 'student') {
+                sm.classList.remove('hidden');
+                am.classList.add('hidden');
+                btns[0].classList.add("active", "primary");
+            } else {
+                sm.classList.add('hidden');
+                am.classList.remove('hidden');
+                btns[1].classList.add("active", "primary");
+            }
+        }
+
+        // --- 학생 모드 기능 ---
+        function selectGrade(val) {
+            selectedGrade = val; selectedClass = ""; selectedNumber = "";
+            renderBtns('.grade-grid', val, 'grade');
+            renderClassBtns();
+            renderNumBtns();
+            updateSummary();
+        }
+        function selectClass(val) {
+            selectedClass = val; selectedNumber = "";
+            renderBtns('#classButtons', val, 'class');
+            renderNumBtns();
+            updateSummary();
+        }
+        function selectNumber(val) {
+            selectedNumber = val;
+            renderBtns('#numberButtons', val, 'number');
+            updateSummary();
+        }
+
+        function renderBtns(selector, activeVal, attr) {
+            document.querySelectorAll(`${selector} .game-btn`).forEach(b => {
+                b.classList.toggle('active', b.dataset[attr] === activeVal);
+                b.classList.toggle('primary', b.dataset[attr] === activeVal);
+            });
+        }
+
+        function renderClassBtns() {
+            const cont = document.getElementById("classButtons");
+            const classes = Object.keys(SCHOOL_STRUCTURE[selectedGrade] || {});
+            if(!classes.length) {
+                cont.innerHTML = '<div class="helper-card">먼저 학년을 선택해 주세요.</div>'; return;
+            }
+            cont.innerHTML = classes.map(c => `
+                <button class="game-btn ${selectedClass===c?'active primary':''}" type="button" data-class="${c}" onclick="selectClass('${c}')">${c}반</button>
+            `).join('');
+        }
+        function renderNumBtns() {
+            const cont = document.getElementById("numberButtons");
+            if(!selectedClass) {
+                cont.innerHTML = '<div class="helper-card">반을 선택하면 번호가 열려요.</div>'; return;
+            }
+            const max = (SCHOOL_STRUCTURE[selectedGrade] || {})[selectedClass] || 0;
+            const nums = Array.from({length: max}, (_, i) => String(i+1));
+            cont.innerHTML = nums.map(n => `
+                <button class="game-btn ${selectedNumber===n?'active primary':''}" type="button" data-number="${n}" onclick="selectNumber('${n}')">${n}번</button>
+            `).join('');
+        }
+        function updateSummary() {
+            const p = document.getElementById("selectionSummary");
+            if(selectedGrade && selectedClass && selectedNumber) {
+                p.textContent = `당신은 ${selectedGrade}학년 ${selectedClass}반 ${selectedNumber}번 입니다!`;
+                p.style.color = "var(--btn-active)";
+            } else {
+                p.textContent = `학년, 반, 번호를 먼저 선택해야 책을 고를 수 있어요.`;
+                p.style.color = "var(--text-muted)";
+            }
+        }
+
+        function ensureInfo() {
+            if(!selectedGrade || !selectedClass || !selectedNumber) {
+                showAlert('앗!', '학년, 반, 번호를 먼저 모두 골라주세요.');
+                return false;
+            }
+            return true;
+        }
+
+        async function searchBooks() {
+            if(!ensureInfo()) return;
+            const q = document.getElementById("searchInput").value.trim();
+            if(!q) { showAlert('알림', '검색어를 입력하세요.'); return; }
+
+            document.getElementById("loadingSpinner").classList.remove("hidden");
+            document.getElementById("searchResults").innerHTML = "";
+
+            try {
+                const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+                const data = await r.json();
+                if(data.error) {
+                    document.getElementById("searchResults").innerHTML = `<div class="helper-card">${data.error}</div>`;
+                } else {
+                    currentBooks = data.books || [];
+                    drawBooks(currentBooks);
+                }
+            } catch(e) {
+                document.getElementById("searchResults").innerHTML = '<div class="helper-card">검색 중 문제가 생겼어요.</div>';
+            } finally {
+                document.getElementById("loadingSpinner").classList.add("hidden");
+            }
+        }
+
+        function drawBooks(books) {
+            const cont = document.getElementById("searchResults");
+            if(!books.length) { cont.innerHTML = '<div class="helper-card">결과가 없어요 다른 검색어를 써보세요.</div>'; return; }
+
+            cont.innerHTML = books.map((b, i) => {
+                const picked = selectedBooks.some(s => s.isbn===b.isbn && s.title===b.title);
+                const cover = b.cover || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='160'><rect width='120' height='160' fill='%23e6eef9'/></svg>";
+                
+                let btnAttr = `onclick="pickBook(${i})"`;
+                let btnText = "선택하기";
+                let btnClass = "game-btn primary";
+                let wrapperClass = "book-card";
+                
+                if(picked) {
+                    btnText = "선택됨";
+                    btnClass = "game-btn";
+                    wrapperClass += " selected";
+                    btnAttr = "disabled";
+                }
+                
+                let dupBadge = "";
+                if(b.isDuplicate && !picked) {
+                    wrapperClass += " duplicate";
+                    dupBadge = `<div class="duplicate-badge">⚠️ 이미 도서관에 있어요</div>`;
+                    btnClass = "game-btn";
+                    btnAttr = `onclick="pickDuplicateBook(${i})" style="color:var(--alert-color)"`;
+                    btnText = "그래도 고르기";
+                }
+
+                return `
+                <div class="${wrapperClass}">
+                    ${dupBadge}
+                    <div class="book-cover-wrap">
+                        <img class="book-cover" src="${cover}">
+                    </div>
+                    <div class="book-info">
+                        <h3>${escapeHtml(b.title)}</h3>
+                        <p>${escapeHtml(b.author)}</p>
+                        <strong>${Number(b.price).toLocaleString()}원</strong>
+                    </div>
+                    <div class="book-action">
+                        <button class="${btnClass}" type="button" ${btnAttr}>${btnText}</button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function pickDuplicateBook(i) {
+            if(confirm("이 책은 이미 우리 학교 도서관에 있습니다.\n그래도 똑같은 책을 구입하도록 신청할까요?")) {
+                pickBook(i);
+            }
+        }
+
+        function pickBook(i) {
+            const book = currentBooks[i];
+            if(selectedBooks.length >= 3) {
+                showAlert('안내', '책은 3권까지만 고를 수 있습니다.'); return;
+            }
+            if(selectedBooks.some(s => s.isbn===book.isbn && s.title===book.title)) return;
+            selectedBooks.push(book);
+            freshBasket();
+            drawBooks(currentBooks);
+        }
+        function removeBook(i) {
+            selectedBooks.splice(i, 1);
+            freshBasket();
+            drawBooks(currentBooks);
+        }
+
+        function freshBasket() {
+            document.getElementById("selectionCount").textContent = selectedBooks.length;
+            const cont = document.getElementById("selectedBooks");
+            if(!selectedBooks.length) {
+                cont.innerHTML = '<div class="helper-card" style="padding:6px;">아직 고른 책이 없어요.</div>';
+            } else {
+                cont.innerHTML = selectedBooks.map((b, i) => `
+                <div class="basket-item">
+                    <div class="basket-order">${i+1}</div>
+                    <div class="basket-info">
+                        <strong>${escapeHtml(b.title)}</strong>
+                        <span>${escapeHtml(b.author)}</span>
+                    </div>
+                    <button type="button" class="remove-btn" onclick="removeBook(${i})">X 삭제</button>
+                </div>
+                `).join('');
+            }
+            document.getElementById("submitBtn").disabled = selectedBooks.length !== 3;
+        }
+
+        async function submitBooks() {
+            if(!ensureInfo()) return;
+            if(selectedBooks.length !== 3) { showAlert('잠깐!', '책 3권을 전부 골라야 합니다.'); return; }
+            
+            try {
+                const btn = document.getElementById("submitBtn");
+                btn.textContent = "제출 중..."; btn.disabled = true;
+
+                const res = await fetch("/api/submit", {
+                    method: "POST", headers: {"Content-Type":"application/json"},
+                    body: JSON.stringify({
+                        grade: selectedGrade, classNum: selectedClass, studentNumber: selectedNumber,
+                        books: selectedBooks
+                    })
+                });
+                const data = await res.json();
+                if(data.success) {
+                    showAlert('성공', data.message);
+                    resetAll();
+                } else {
+                    showAlert('오류', data.error);
+                }
+            } catch(e) {
+                showAlert('네트워크 오류', '서버와 연결이 안됩니다.');
+            } finally {
+                const btn = document.getElementById("submitBtn");
+                btn.textContent = "✅ 이대로 제출하기"; btn.disabled = selectedBooks.length !== 3;
+            }
+        }
+
+        function resetAll() {
+            selectedGrade=""; selectedClass=""; selectedNumber=""; selectedBooks=[]; currentBooks=[];
+            document.getElementById("searchInput").value = "";
+            document.getElementById("searchResults").innerHTML = '<div class="helper-card" style="grid-column: 1/-1;">보고 싶은 책을 검색해 보세요!</div>';
+            document.querySelectorAll(".game-btn").forEach(b => {b.classList.remove('active', 'primary')});
+            document.querySelector(".mode-actions .game-btn").classList.add('active', 'primary');
+            renderClassBtns(); renderNumBtns(); updateSummary(); freshBasket();
+        }
+
+        function escapeHtml(val) {
+            return String(val || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+        }
+
+        function showAlert(title, msg) {
+            document.getElementById("alertTitle").textContent = title;
+            document.getElementById("alertMessage").textContent = msg;
+            document.getElementById("alertModal").classList.remove('hidden');
+        }
+        function closeAlertModal() {
+            document.getElementById("alertModal").classList.add('hidden');
+        }
+
+        // --- 관리자 모드 기능 ---
+        async function adminLogin() {
+            const pwd = document.getElementById("adminPassword").value.trim();
+            if(!pwd) { showAlert('', '비밀번호를 입력하세요.'); return; }
+            const r = await fetch("/api/admin/login", {
+                method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({password: pwd})
+            });
+            const d = await r.json();
+            if(d.success) {
+                document.getElementById("adminLoginBox").classList.add("hidden");
+                document.getElementById("adminTools").classList.remove("hidden");
+                loadAdminSubmissions();
+                loadCatalogInfo();
+            } else {
+                showAlert('로그인 실패', d.error);
+            }
+        }
+        async function adminLogout() {
+            await fetch("/api/admin/logout", {method:"POST"});
+            document.getElementById("adminLoginBox").classList.remove("hidden");
+            document.getElementById("adminTools").classList.add("hidden");
+            document.getElementById("adminPassword").value = "";
+        }
+        async function loadAdminSubmissions() {
+            const g = document.getElementById("adminGrade").value;
+            const c = document.getElementById("adminClass").value;
+            const u = new URLSearchParams();
+            if(g) u.set("grade", g);
+            if(c) u.set("classNum", c);
+            const r = await fetch(`/api/admin/submissions?${u.toString()}`);
+            const data = await r.json();
+            if(r.ok) {
+                const b = document.getElementById("adminTableBody");
+                document.getElementById("adminCount").textContent = data.submissions.length;
+                if(!data.submissions.length) { b.innerHTML='<tr><td colspan="5" style="text-align:center;">결과가 없습니다.</td></tr>'; return; }
+                b.innerHTML = data.submissions.map(s => `
+                <tr>
+                    <td>${s.timestamp}</td>
+                    <td><strong>${s.grade}-${s.classNum}-${s.studentNumber}</strong></td>
+                    <td>${escapeHtml(s.books[0]?.title)}</td>
+                    <td>${escapeHtml(s.books[1]?.title)}</td>
+                    <td>${escapeHtml(s.books[2]?.title)}</td>
+                </tr>
+                `).join('');
+            }
+        }
+        function downloadAdminXlsx() {
+            const g = document.getElementById("adminGrade").value;
+            const c = document.getElementById("adminClass").value;
+            const u = new URLSearchParams();
+            if(g) u.set("grade", g);
+            if(c) u.set("classNum", c);
+            window.location.href = `/api/admin/export?${u.toString()}`;
+        }
+
+        async function loadCatalogInfo() {
+            try {
+                const r = await fetch("/api/admin/catalog");
+                const d = await r.json();
+                if(r.ok) {
+                    document.getElementById("catalogCount").textContent = (d.catalog || []).length + "권";
+                }
+            } catch(e) {}
+        }
+
+        async function uploadCatalog() {
+            const fileInput = document.getElementById("catalogFile");
+            if(!fileInput.files[0]) { showAlert('경고', '업로드할 엑셀/CSV 파일을 먼저 선택하세요.'); return; }
+            
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+            
+            try {
+                const r = await fetch("/api/admin/upload-catalog", { method:"POST", body:formData });
+                const d = await r.json();
+                if(d.success) {
+                    showAlert('업로드 성공', d.message);
+                    fileInput.value = "";
+                    loadCatalogInfo();
+                } else {
+                    showAlert('오류', d.error);
+                }
+            } catch(e) {
+                showAlert('네트워크 오류', '업로드 중 오류가 발생했습니다.');
+            }
+        }
+
+        async function clearCatalog() {
+            if(!confirm("도서관 소장 목록 기준 데이터를 전부 삭제할까요?")) return;
+            const r = await fetch("/api/admin/catalog", { method:"DELETE" });
+            const d = await r.json();
+            if(d.success) {
+                showAlert('삭제됨', '도서관 소장 목록을 비웠습니다.');
+                loadCatalogInfo();
+            }
+        }
+    </script>
+</body>
+</html>
