@@ -157,6 +157,17 @@
     </div>
 
     <!-- 모달: 안내 메시지 -->
+    <div id="summaryModal" class="modal hidden" onclick="closeSummaryModal()">
+        <div class="modal-content summary-modal-content" onclick="event.stopPropagation()">
+            <h2 id="summaryTitle">책 줄거리</h2>
+            <p id="summaryMeta" class="summary-meta"></p>
+            <p id="summaryText" class="summary-text"></p>
+            <div class="modal-actions">
+                <button class="game-btn primary" type="button" onclick="closeSummaryModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+
     <div id="alertModal" class="modal hidden">
         <div class="modal-content">
             <h2 id="alertTitle">안내</h2>
@@ -179,6 +190,13 @@
 
         document.getElementById("searchInput").addEventListener("keypress", (e) => {
             if (e.key === "Enter") searchBooks();
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+                closeAlertModal();
+                closeSummaryModal();
+            }
         });
 
         function switchMode(mode) {
@@ -319,7 +337,7 @@
                 }
 
                 return `
-                <div class="${wrapperClass}">
+                <div class="${wrapperClass}" role="button" tabindex="0" onclick="openSummaryModal(${i})" onkeydown="handleBookCardKeydown(event, ${i})">
                     ${dupBadge}
                     <div class="book-cover-wrap">
                         <img class="book-cover" src="${cover}">
@@ -329,7 +347,7 @@
                         <p>${escapeHtml(b.author)}</p>
                         <strong>${Number(b.price).toLocaleString()}원</strong>
                     </div>
-                    <div class="book-action">
+                    <div class="book-action" onclick="event.stopPropagation()">
                         <button class="${btnClass}" type="button" ${btnAttr}>${btnText}</button>
                     </div>
                 </div>
@@ -423,6 +441,30 @@
 
         function escapeHtml(val) {
             return String(val || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+        }
+
+        function handleBookCardKeydown(event, index) {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openSummaryModal(index);
+            }
+        }
+
+        function openSummaryModal(index) {
+            const book = currentBooks[index];
+            if (!book) return;
+
+            const meta = [book.author, book.publisher].filter(Boolean).join(" · ");
+            const summary = (book.description || "").trim() || "이 책의 간단한 줄거리 정보가 아직 없습니다.";
+
+            document.getElementById("summaryTitle").textContent = book.title || "책 줄거리";
+            document.getElementById("summaryMeta").textContent = meta;
+            document.getElementById("summaryText").textContent = summary;
+            document.getElementById("summaryModal").classList.remove('hidden');
+        }
+
+        function closeSummaryModal() {
+            document.getElementById("summaryModal").classList.add('hidden');
         }
 
         function showAlert(title, msg) {
