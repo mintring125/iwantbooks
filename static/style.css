@@ -174,9 +174,13 @@ button, input, select {
 .search-row {
     display: flex;
     gap: 10px;
+    align-items: stretch;
 }
 .search-input {
     flex: 1;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     border: 3px solid var(--line);
     border-radius: var(--radius-md);
     padding: 10px 14px;
@@ -471,4 +475,41 @@ button, input, select {
     border: 3px solid var(--line);
     border-radius: var(--radius-md);
     margin-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+    .search-row,
+    .admin-login-box {
+        flex-direction: column;
+    }
+
+    .search-row .game-btn,
+    .admin-login-box .game-btn,
+    .search-input {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .panel {
+        padding: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-shell {
+        padding: 16px 10px 180px;
+    }
+
+    .hero h1 {
+        font-size: 1.4rem;
+    }
+
+    .search-input {
+        font-size: 1rem;
+        padding: 10px 12px;
+    }
+
+    .book-grid {
+        grid-template-columns: 1fr;
+    }
 }
