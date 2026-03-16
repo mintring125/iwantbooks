@@ -121,6 +121,7 @@ button, input, select {
 .mode-actions {
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
 }
 
 .panel-head {
@@ -374,6 +375,7 @@ button, input, select {
 .admin-login-box {
     display: flex;
     gap: 10px;
+    align-items: stretch;
 }
 .admin-toolbar {
     display: flex;
@@ -405,6 +407,18 @@ button, input, select {
     font-size: 1.1rem;
     font-weight: bold;
     margin-bottom: 10px;
+}
+
+.admin-catalog-actions,
+.admin-summary-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: stretch;
+}
+
+.admin-summary-actions {
+    margin-left: auto;
 }
 
 .admin-table-wrap {
@@ -480,6 +494,27 @@ button, input, select {
         flex-direction: column;
     }
 
+    .mode-actions,
+    .admin-catalog-actions,
+    .admin-summary-actions,
+    .admin-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admin-summary-actions {
+        margin-left: 0;
+    }
+
+    .filter-group,
+    .filter-group select,
+    .mode-actions .game-btn,
+    .admin-catalog-actions .game-btn,
+    .admin-summary-actions .game-btn {
+        width: 100%;
+        max-width: 100%;
+    }
+
     .search-row .game-btn,
     .admin-login-box .game-btn,
     .search-input {
@@ -494,7 +529,7 @@ button, input, select {
 
 @media (max-width: 480px) {
     .page-shell {
-        padding: 16px 10px 180px;
+        padding: 16px 10px 40px;
     }
 
     .hero h1 {

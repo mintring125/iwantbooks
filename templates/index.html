@@ -96,7 +96,7 @@
                     <div class="admin-catalog-box">
                         <h3>📚 도서관 소장 도서 (복본 확인용)</h3>
                         <p class="catalog-stats">현재 올라간 목록 수: <span id="catalogCount">불러오는 중...</span></p>
-                        <div style="display:flex; gap:10px; margin-top:10px;">
+                        <div class="admin-catalog-actions">
                             <input type="file" id="catalogFile" accept=".xlsx,.xls,.csv" class="search-input" style="padding: 4px 8px; font-size:1rem;">
                             <button class="game-btn primary" type="button" onclick="uploadCatalog()">파일 올리기</button>
                             <button class="game-btn" type="button" onclick="clearCatalog()" style="background:var(--alert-bg); border-color:var(--alert-color); color:var(--alert-color);">목록 지우기</button>
@@ -125,7 +125,7 @@
                                 <option value="2">2반</option>
                             </select>
                         </div>
-                        <div style="margin-left:auto; display:flex; gap:10px; align-items:flex-end;">
+                        <div class="admin-summary-actions">
                             <span style="font-weight:bold; padding: 12px;">총 제출: <span id="adminCount">0</span>명</span>
                             <button class="game-btn primary" type="button" onclick="downloadAdminXlsx()">엑셀 다운로드</button>
                             <button class="game-btn" type="button" onclick="adminLogout()">로그아웃</button>
