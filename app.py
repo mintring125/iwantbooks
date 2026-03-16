@@ -20,7 +20,9 @@ def build_database_url():
     if not database_url:
         return "sqlite:///school_books.db"
     if database_url.startswith("postgres://"):
-        return database_url.replace("postgres://", "postgresql://", 1)
+        return database_url.replace("postgres://", "postgresql+psycopg://", 1)
+    if database_url.startswith("postgresql://"):
+        return database_url.replace("postgresql://", "postgresql+psycopg://", 1)
     return database_url
 
 
@@ -29,6 +31,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "purchase-wishlist-2026")
 app.config["SQLALCHEMY_DATABASE_URI"] = build_database_url()
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
+db_initialized = False
 
 ALADIN_API_KEY = os.environ.get("ALADIN_API_KEY", "ttbmintkaori0528001")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "2026")
@@ -104,6 +107,7 @@ def normalize_isbn(isbn):
 
 
 def check_duplicate(book_title, book_isbn=""):
+    ensure_database_ready()
     clean_isbn = normalize_isbn(book_isbn)
     if clean_isbn:
         if db.session.query(CatalogBook.id).filter(CatalogBook.isbn == clean_isbn).first():
@@ -226,6 +230,7 @@ def require_admin():
 
 
 def query_submissions(grade="", class_num=""):
+    ensure_database_ready()
     query = Submission.query.order_by(
         Submission.grade.asc(),
         Submission.class_num.asc(),
@@ -316,14 +321,27 @@ def bootstrap_catalog_from_json():
 
 
 def initialize_database():
+    global db_initialized
+    if db_initialized:
+        return
     with app.app_context():
         db.create_all()
         bootstrap_submissions_from_json()
         bootstrap_catalog_from_json()
+    db_initialized = True
+
+
+def ensure_database_ready():
+    try:
+        initialize_database()
+    except Exception as exc:
+        app.logger.exception("Database initialization failed: %s", exc)
+        raise
 
 
 @app.route("/")
 def index():
+    ensure_database_ready()
     return render_template(
         "index.html",
         has_api_key=bool(ALADIN_API_KEY),
@@ -387,6 +405,7 @@ def search_books():
 
 @app.route("/api/submit", methods=["POST"])
 def submit_books():
+    ensure_database_ready()
     data = request.get_json() or {}
     grade = str(data.get("grade", "")).strip()
     class_num = str(data.get("classNum", "")).strip()
@@ -465,6 +484,7 @@ def admin_logout():
 
 @app.route("/api/admin/submissions")
 def admin_submissions():
+    ensure_database_ready()
     if not require_admin():
         return jsonify({"error": "관리자 인증이 필요합니다."}), 401
 
@@ -475,6 +495,7 @@ def admin_submissions():
 
 @app.route("/api/admin/export")
 def admin_export():
+    ensure_database_ready()
     if not require_admin():
         return jsonify({"error": "관리자 인증이 필요합니다."}), 401
 
@@ -501,6 +522,7 @@ def admin_export():
 
 @app.route("/api/admin/catalog", methods=["GET"])
 def get_catalog():
+    ensure_database_ready()
     if not require_admin():
         return jsonify({"error": "관리자 인증이 필요합니다."}), 401
     books = CatalogBook.query.order_by(CatalogBook.title.asc()).all()
@@ -509,6 +531,7 @@ def get_catalog():
 
 @app.route("/api/admin/catalog", methods=["DELETE"])
 def clear_catalog():
+    ensure_database_ready()
     if not require_admin():
         return jsonify({"error": "관리자 인증이 필요합니다."}), 401
     CatalogBook.query.delete()
@@ -518,6 +541,7 @@ def clear_catalog():
 
 @app.route("/api/admin/upload-catalog", methods=["POST"])
 def upload_catalog():
+    ensure_database_ready()
     if not require_admin():
         return jsonify({"error": "관리자 인증이 필요합니다."}), 401
 
@@ -598,10 +622,6 @@ def upload_catalog():
             "count": len(catalog_rows),
         }
     )
-
-
-initialize_database()
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
