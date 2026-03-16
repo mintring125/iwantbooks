@@ -431,15 +431,30 @@ button, input, select {
     width: 100%;
     border-collapse: collapse;
     min-width: 800px;
+    table-layout: fixed;
 }
 .admin-table th, .admin-table td {
     border-bottom: 2px solid var(--line);
     padding: 10px;
     text-align: left;
+    vertical-align: top;
+    word-break: break-word;
 }
 .admin-table th {
     background: var(--btn-primary);
     border-bottom: 3px solid var(--line);
+}
+
+.admin-col-time {
+    width: 18%;
+}
+
+.admin-col-student {
+    width: 16%;
+}
+
+.admin-col-book {
+    width: 22%;
 }
 
 /* MODAL */
