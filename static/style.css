@@ -536,6 +536,18 @@ button, input, select {
         font-size: 1.4rem;
     }
 
+    .grade-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grade-grid .game-btn {
+        min-width: 0;
+        width: 100%;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
     .search-input {
         font-size: 1rem;
         padding: 10px 12px;
