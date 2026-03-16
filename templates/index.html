@@ -1,134 +1,134 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2026 희망 도서 신청</title>
+    <title>2026 ????? ?? ???? ???</title>
+    <title>2026 ?щ쭩 ?꾩꽌 ?좎껌</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nanum+Square+Round:wght@400;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="page-shell">
+            <h1>2026 ????? ?? ???? ???</h1>
         <header class="hero panel">
-            <h1>📚 2026 희망 도서 신청</h1>
+            <h1>?뱴 2026 ?щ쭩 ?꾩꽌 ?좎껌</h1>
             <div class="mode-actions">
-                <button class="game-btn primary active" type="button" onclick="switchMode('student')">학생 모드</button>
-                <button class="game-btn" type="button" onclick="switchMode('admin')">관리자</button>
+                <button class="game-btn primary active" type="button" onclick="switchMode('student')">?숈깮 紐⑤뱶</button>
+                <button class="game-btn" type="button" onclick="switchMode('admin')">愿由ъ옄</button>
             </div>
         </header>
 
         {% if not has_api_key %}
         <div style="background:var(--alert-bg); color:var(--alert-color); padding: 10px; margin-bottom: 20px; border-radius: 8px; font-weight: bold; text-align: center; border: 2px solid var(--line);">
-            알라딘 API 키가 없어서 책 검색이 동작하지 않습니다.
+            ?뚮씪??API ?ㅺ? ?놁뼱??梨?寃?됱씠 ?숈옉?섏? ?딆뒿?덈떎.
         </div>
         {% endif %}
 
         <main id="studentMode">
             <section class="panel">
                 <div class="panel-head">
-                    <h2>1️⃣ 내 자리 선택하기</h2>
+                    <h2>1截뤴깵 ???먮━ ?좏깮?섍린</h2>
                 </div>
                 <div class="picker-row">
-                    <h3>학년 선택</h3>
+                    <h3>?숇뀈 ?좏깮</h3>
                     <div class="grid-buttons grade-grid">
                         {% for grade in grades %}
-                        <button class="game-btn" type="button" data-grade="{{ grade }}" onclick="selectGrade('{{ grade }}')">{{ grade }}학년</button>
+                        <button class="game-btn" type="button" data-grade="{{ grade }}" onclick="selectGrade('{{ grade }}')">{{ grade }}?숇뀈</button>
                         {% endfor %}
                     </div>
                 </div>
                 <div class="picker-row">
-                    <h3>반 선택</h3>
+                    <h3>諛??좏깮</h3>
                     <div id="classButtons" class="grid-buttons class-grid">
-                        <div class="helper-card">먼저 학년을 선택해 주세요.</div>
+                        <div class="helper-card">癒쇱? ?숇뀈???좏깮??二쇱꽭??</div>
                     </div>
                 </div>
                 <div class="picker-row">
-                    <h3>번호 선택</h3>
+                    <h3>踰덊샇 ?좏깮</h3>
                     <div id="numberButtons" class="grid-buttons number-grid">
-                        <div class="helper-card">반을 선택하면 번호 버튼이 열립니다.</div>
+                        <div class="helper-card">諛섏쓣 ?좏깮?섎㈃ 踰덊샇 踰꾪듉???대┰?덈떎.</div>
                     </div>
                 </div>
                 <div id="selectionSummary" style="margin-top:20px; text-align:center; font-weight:bold; color:var(--btn-active-shadow);">
-                    학년, 반, 번호를 먼저 선택해야 책을 고를 수 있어요.
+                    ?숇뀈, 諛? 踰덊샇瑜?癒쇱? ?좏깮?댁빞 梨낆쓣 怨좊? ???덉뼱??
                 </div>
             </section>
 
             <section class="panel">
                 <div class="panel-head">
-                    <h2>2️⃣ 책 검색하고 고르기</h2>
+                    <h2>2截뤴깵 梨?寃?됲븯怨?怨좊Ⅴ湲?/h2>
                 </div>
                 <div class="search-row">
-                    <input type="text" id="searchInput" class="search-input" placeholder="책 이름이나 작가를 적어보세요">
-                    <button class="game-btn primary" id="searchBtn" type="button" onclick="searchBooks()">🔍 검색</button>
+                    <input type="text" id="searchInput" class="search-input" placeholder="梨??대쫫?대굹 ?묎?瑜??곸뼱蹂댁꽭??>
+                    <button class="game-btn primary" id="searchBtn" type="button" onclick="searchBooks()">?뵇 寃??/button>
                 </div>
                 <div id="loadingSpinner" class="loading-spinner hidden">
-                    책을 찾는 중입니다...
+                    梨낆쓣 李얜뒗 以묒엯?덈떎...
                 </div>
                 <div id="searchResults" class="book-grid">
-                    <div class="helper-card" style="grid-column: 1/-1;">보고 싶은 책을 검색해 보세요!</div>
+                    <div class="helper-card" style="grid-column: 1/-1;">蹂닿퀬 ?띠? 梨낆쓣 寃?됲빐 蹂댁꽭??</div>
                 </div>
             </section>
 
             <section class="panel basket-panel">
                 <div class="panel-head" style="margin-bottom: 10px; border:none; padding:0;">
-                    <h2>3️⃣ 다 고른 책 (<span id="selectionCount">0</span>/3권)</h2>
+                    <h2>3截뤴깵 ??怨좊Ⅸ 梨?(<span id="selectionCount">0</span>/3沅?</h2>
                 </div>
                 <div id="selectedBooks" class="selected-books">
-                    <div class="helper-card" style="padding: 6px;">아직 고른 책이 없어요.</div>
+                    <div class="helper-card" style="padding: 6px;">?꾩쭅 怨좊Ⅸ 梨낆씠 ?놁뼱??</div>
                 </div>
-                <button id="submitBtn" class="game-btn primary submit-btn" type="button" disabled onclick="submitBooks()">✅ 이대로 제출하기</button>
+                <button id="submitBtn" class="game-btn primary submit-btn" type="button" disabled onclick="submitBooks()">???대?濡??쒖텧?섍린</button>
             </section>
         </main>
 
         <main id="adminMode" class="hidden">
             <section class="panel">
                 <div class="panel-head">
-                    <h2>⚙️ 관리자 모드</h2>
+                    <h2>?숋툘 愿由ъ옄 紐⑤뱶</h2>
                 </div>
                 <div id="adminLoginBox" class="admin-login-box">
-                    <input type="password" id="adminPassword" class="search-input" placeholder="관리자 비밀번호">
-                    <button class="game-btn primary" type="button" onclick="adminLogin()">로그인</button>
+                    <input type="password" id="adminPassword" class="search-input" placeholder="愿由ъ옄 鍮꾨?踰덊샇">
+                    <button class="game-btn primary" type="button" onclick="adminLogin()">濡쒓렇??/button>
                 </div>
 
                 <div id="adminTools" class="hidden">
                     <div class="admin-catalog-box">
-                        <h3>📚 도서관 소장 도서 (복본 확인용)</h3>
-                        <p class="catalog-stats">현재 올라간 목록 수: <span id="catalogCount">불러오는 중...</span></p>
+                        <h3>?뱴 ?꾩꽌愿 ?뚯옣 ?꾩꽌 (蹂듬낯 ?뺤씤??</h3>
+                        <p class="catalog-stats">?꾩옱 ?щ씪媛?紐⑸줉 ?? <span id="catalogCount">遺덈윭?ㅻ뒗 以?..</span></p>
                         <div class="admin-catalog-actions">
                             <input type="file" id="catalogFile" accept=".xlsx,.xls,.csv" class="search-input" style="padding: 4px 8px; font-size:1rem;">
-                            <button class="game-btn primary" type="button" onclick="uploadCatalog()">파일 올리기</button>
-                            <button class="game-btn" type="button" onclick="clearCatalog()" style="background:var(--alert-bg); border-color:var(--alert-color); color:var(--alert-color);">목록 지우기</button>
+                            <button class="game-btn primary" type="button" onclick="uploadCatalog()">?뚯씪 ?щ━湲?/button>
+                            <button class="game-btn" type="button" onclick="clearCatalog()" style="background:var(--alert-bg); border-color:var(--alert-color); color:var(--alert-color);">紐⑸줉 吏?곌린</button>
                         </div>
                         <p style="font-size:0.85rem; color:var(--text-muted); margin-top:10px;">
-                            * 독서로 DLS에서 장서현황 목록을 엑셀로 내려받아 업로드하세요.<br>
-                            * 이 목록에 있는 도서는 학생들이 검색할 때 '⚠️ 복본'으로 표시됩니다.
+                            * ?낆꽌濡?DLS?먯꽌 ?μ꽌?꾪솴 紐⑸줉???묒?濡??대젮諛쏆븘 ?낅줈?쒗븯?몄슂.<br>
+                            * ??紐⑸줉???덈뒗 ?꾩꽌???숈깮?ㅼ씠 寃?됲븷 ??'?좑툘 蹂듬낯'?쇰줈 ?쒖떆?⑸땲??
                         </p>
                     </div>
 
                     <div class="admin-toolbar">
                         <div class="filter-group">
-                            <label>학년</label>
+                            <label>?숇뀈</label>
                             <select id="adminGrade" onchange="loadAdminSubmissions()">
-                                <option value="">전체 학년</option>
+                                <option value="">?꾩껜 ?숇뀈</option>
                                 {% for grade in grades %}
-                                <option value="{{ grade }}">{{ grade }}학년</option>
+                                <option value="{{ grade }}">{{ grade }}?숇뀈</option>
                                 {% endfor %}
                             </select>
                         </div>
                         <div class="filter-group">
-                            <label>반</label>
+                            <label>諛?/label>
                             <select id="adminClass" onchange="loadAdminSubmissions()">
-                                <option value="">전체 반</option>
-                                <option value="1">1반</option>
-                                <option value="2">2반</option>
+                                <option value="">?꾩껜 諛?/option>
+                                <option value="1">1諛?/option>
+                                <option value="2">2諛?/option>
                             </select>
                         </div>
                         <div class="admin-summary-actions">
-                            <span style="font-weight:bold; padding: 12px;">총 제출: <span id="adminCount">0</span>명</span>
-                            <button class="game-btn primary" type="button" onclick="downloadAdminXlsx()">엑셀 다운로드</button>
-                            <button class="game-btn" type="button" onclick="adminLogout()">로그아웃</button>
+                            <span style="font-weight:bold; padding: 12px;">珥??쒖텧: <span id="adminCount">0</span>紐?/span>
+                            <button class="game-btn primary" type="button" onclick="downloadAdminXlsx()">?묒? ?ㅼ슫濡쒕뱶</button>
+                            <button class="game-btn" type="button" onclick="adminLogout()">濡쒓렇?꾩썐</button>
                         </div>
                     </div>
 
@@ -143,16 +143,16 @@
                             </colgroup>
                             <thead>
                                 <tr>
-                                    <th>시간</th>
-                                    <th>학/반/번</th>
-                                    <th>도서 1지망</th>
-                                    <th>도서 2지망</th>
-                                    <th>도서 3지망</th>
+                                    <th>?쒓컙</th>
+                                    <th>??諛?踰?/th>
+                                    <th>?꾩꽌 1吏留?/th>
+                                    <th>?꾩꽌 2吏留?/th>
+                                    <th>?꾩꽌 3吏留?/th>
                                 </tr>
                             </thead>
                             <tbody id="adminTableBody">
                                 <tr>
-                                    <td colspan="5" style="text-align:center;">결과가 없습니다.</td>
+                                    <td colspan="5" style="text-align:center;">寃곌낵媛 ?놁뒿?덈떎.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -162,18 +162,18 @@
         </main>
     </div>
 
-    <!-- 모달: 안내 메시지 -->
+    <!-- 紐⑤떖: ?덈궡 硫붿떆吏 -->
     <div id="alertModal" class="modal hidden">
         <div class="modal-content">
-            <h2 id="alertTitle">안내</h2>
+            <h2 id="alertTitle">?덈궡</h2>
             <p id="alertMessage"></p>
             <div class="modal-actions">
-                <button class="game-btn primary" type="button" onclick="closeAlertModal()">확인</button>
+                <button class="game-btn primary" type="button" onclick="closeAlertModal()">?뺤씤</button>
             </div>
         </div>
     </div>
 
-    <!-- 스크립트 -->
+    <!-- ?ㅽ겕由쏀듃 -->
     <script>
         const SCHOOL_STRUCTURE = {{ school_structure|tojson }};
 
@@ -204,7 +204,7 @@
             }
         }
 
-        // --- 학생 모드 기능 ---
+        // --- ?숈깮 紐⑤뱶 湲곕뒫 ---
         function selectGrade(val) {
             selectedGrade = val; selectedClass = ""; selectedNumber = "";
             renderBtns('.grade-grid', val, 'grade');
@@ -235,37 +235,37 @@
             const cont = document.getElementById("classButtons");
             const classes = Object.keys(SCHOOL_STRUCTURE[selectedGrade] || {});
             if(!classes.length) {
-                cont.innerHTML = '<div class="helper-card">먼저 학년을 선택해 주세요.</div>'; return;
+                cont.innerHTML = '<div class="helper-card">癒쇱? ?숇뀈???좏깮??二쇱꽭??</div>'; return;
             }
             cont.innerHTML = classes.map(c => `
-                <button class="game-btn ${selectedClass===c?'active primary':''}" type="button" data-class="${c}" onclick="selectClass('${c}')">${c}반</button>
+                <button class="game-btn ${selectedClass===c?'active primary':''}" type="button" data-class="${c}" onclick="selectClass('${c}')">${c}諛?/button>
             `).join('');
         }
         function renderNumBtns() {
             const cont = document.getElementById("numberButtons");
             if(!selectedClass) {
-                cont.innerHTML = '<div class="helper-card">반을 선택하면 번호가 열려요.</div>'; return;
+                cont.innerHTML = '<div class="helper-card">諛섏쓣 ?좏깮?섎㈃ 踰덊샇媛 ?대젮??</div>'; return;
             }
             const max = (SCHOOL_STRUCTURE[selectedGrade] || {})[selectedClass] || 0;
             const nums = Array.from({length: max}, (_, i) => String(i+1));
             cont.innerHTML = nums.map(n => `
-                <button class="game-btn ${selectedNumber===n?'active primary':''}" type="button" data-number="${n}" onclick="selectNumber('${n}')">${n}번</button>
+                <button class="game-btn ${selectedNumber===n?'active primary':''}" type="button" data-number="${n}" onclick="selectNumber('${n}')">${n}踰?/button>
             `).join('');
         }
         function updateSummary() {
             const p = document.getElementById("selectionSummary");
             if(selectedGrade && selectedClass && selectedNumber) {
-                p.textContent = `당신은 ${selectedGrade}학년 ${selectedClass}반 ${selectedNumber}번 입니다!`;
+                p.textContent = `?뱀떊? ${selectedGrade}?숇뀈 ${selectedClass}諛?${selectedNumber}踰??낅땲??`;
                 p.style.color = "var(--btn-active)";
             } else {
-                p.textContent = `학년, 반, 번호를 먼저 선택해야 책을 고를 수 있어요.`;
+                p.textContent = `?숇뀈, 諛? 踰덊샇瑜?癒쇱? ?좏깮?댁빞 梨낆쓣 怨좊? ???덉뼱??`;
                 p.style.color = "var(--text-muted)";
             }
         }
 
         function ensureInfo() {
             if(!selectedGrade || !selectedClass || !selectedNumber) {
-                showAlert('앗!', '학년, 반, 번호를 먼저 모두 골라주세요.');
+                showAlert('??', '?숇뀈, 諛? 踰덊샇瑜?癒쇱? 紐⑤몢 怨⑤씪二쇱꽭??');
                 return false;
             }
             return true;
@@ -274,7 +274,7 @@
         async function searchBooks() {
             if(!ensureInfo()) return;
             const q = document.getElementById("searchInput").value.trim();
-            if(!q) { showAlert('알림', '검색어를 입력하세요.'); return; }
+            if(!q) { showAlert('?뚮┝', '寃?됱뼱瑜??낅젰?섏꽭??'); return; }
 
             document.getElementById("loadingSpinner").classList.remove("hidden");
             document.getElementById("searchResults").innerHTML = "";
@@ -289,7 +289,7 @@
                     drawBooks(currentBooks);
                 }
             } catch(e) {
-                document.getElementById("searchResults").innerHTML = '<div class="helper-card">검색 중 문제가 생겼어요.</div>';
+                document.getElementById("searchResults").innerHTML = '<div class="helper-card">寃??以?臾몄젣媛 ?앷꼈?댁슂.</div>';
             } finally {
                 document.getElementById("loadingSpinner").classList.add("hidden");
             }
@@ -297,19 +297,19 @@
 
         function drawBooks(books) {
             const cont = document.getElementById("searchResults");
-            if(!books.length) { cont.innerHTML = '<div class="helper-card">결과가 없어요 다른 검색어를 써보세요.</div>'; return; }
+            if(!books.length) { cont.innerHTML = '<div class="helper-card">寃곌낵媛 ?놁뼱???ㅻⅨ 寃?됱뼱瑜??⑤낫?몄슂.</div>'; return; }
 
             cont.innerHTML = books.map((b, i) => {
                 const picked = selectedBooks.some(s => s.isbn===b.isbn && s.title===b.title);
                 const cover = b.cover || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='160'><rect width='120' height='160' fill='%23e6eef9'/></svg>";
                 
                 let btnAttr = `onclick="pickBook(${i})"`;
-                let btnText = "선택하기";
+                let btnText = "?좏깮?섍린";
                 let btnClass = "game-btn primary";
                 let wrapperClass = "book-card";
                 
                 if(picked) {
-                    btnText = "선택됨";
+                    btnText = "?좏깮??;
                     btnClass = "game-btn";
                     wrapperClass += " selected";
                     btnAttr = "disabled";
@@ -318,10 +318,10 @@
                 let dupBadge = "";
                 if(b.isDuplicate && !picked) {
                     wrapperClass += " duplicate";
-                    dupBadge = `<div class="duplicate-badge">⚠️ 이미 도서관에 있어요</div>`;
+                    dupBadge = `<div class="duplicate-badge">?좑툘 ?대? ?꾩꽌愿???덉뼱??/div>`;
                     btnClass = "game-btn";
                     btnAttr = `onclick="pickDuplicateBook(${i})" style="color:var(--alert-color)"`;
-                    btnText = "그래도 고르기";
+                    btnText = "洹몃옒??怨좊Ⅴ湲?;
                 }
 
                 return `
@@ -333,7 +333,7 @@
                     <div class="book-info">
                         <h3>${escapeHtml(b.title)}</h3>
                         <p>${escapeHtml(b.author)}</p>
-                        <strong>${Number(b.price).toLocaleString()}원</strong>
+                        <strong>${Number(b.price).toLocaleString()}??/strong>
                     </div>
                     <div class="book-action">
                         <button class="${btnClass}" type="button" ${btnAttr}>${btnText}</button>
@@ -344,7 +344,7 @@
         }
 
         function pickDuplicateBook(i) {
-            if(confirm("이 책은 이미 우리 학교 도서관에 있습니다.\n그래도 똑같은 책을 구입하도록 신청할까요?")) {
+            if(confirm("??梨낆? ?대? ?곕━ ?숆탳 ?꾩꽌愿???덉뒿?덈떎.\n洹몃옒???묎컳? 梨낆쓣 援ъ엯?섎룄濡??좎껌?좉퉴??")) {
                 pickBook(i);
             }
         }
@@ -352,7 +352,7 @@
         function pickBook(i) {
             const book = currentBooks[i];
             if(selectedBooks.length >= 3) {
-                showAlert('안내', '책은 3권까지만 고를 수 있습니다.'); return;
+                showAlert('?덈궡', '梨낆? 3沅뚭퉴吏留?怨좊? ???덉뒿?덈떎.'); return;
             }
             if(selectedBooks.some(s => s.isbn===book.isbn && s.title===book.title)) return;
             selectedBooks.push(book);
@@ -375,7 +375,7 @@
             document.getElementById("selectionCount").textContent = selectedBooks.length;
             const cont = document.getElementById("selectedBooks");
             if(!selectedBooks.length) {
-                cont.innerHTML = '<div class="helper-card" style="padding:6px;">아직 고른 책이 없어요.</div>';
+                cont.innerHTML = '<div class="helper-card" style="padding:6px;">?꾩쭅 怨좊Ⅸ 梨낆씠 ?놁뼱??</div>';
             } else {
                 cont.innerHTML = selectedBooks.map((b, i) => `
                 <div class="basket-item">
@@ -384,7 +384,7 @@
                         <strong>${escapeHtml(b.title)}</strong>
                         <span>${escapeHtml(b.author)}</span>
                     </div>
-                    <button type="button" class="remove-btn" onclick="removeBook(${i})">X 삭제</button>
+                    <button type="button" class="remove-btn" onclick="removeBook(${i})">X ??젣</button>
                 </div>
                 `).join('');
             }
@@ -393,11 +393,11 @@
 
         async function submitBooks() {
             if(!ensureInfo()) return;
-            if(selectedBooks.length !== 3) { showAlert('잠깐!', '책 3권을 전부 골라야 합니다.'); return; }
+            if(selectedBooks.length !== 3) { showAlert('?좉퉸!', '梨?3沅뚯쓣 ?꾨? 怨⑤씪???⑸땲??'); return; }
             
             try {
                 const btn = document.getElementById("submitBtn");
-                btn.textContent = "제출 중..."; btn.disabled = true;
+                btn.textContent = "?쒖텧 以?.."; btn.disabled = true;
 
                 const res = await fetch("/api/submit", {
                     method: "POST", headers: {"Content-Type":"application/json"},
@@ -408,23 +408,23 @@
                 });
                 const data = await res.json();
                 if(data.success) {
-                    showAlert('성공', data.message);
+                    showAlert('?깃났', data.message);
                     resetAll();
                 } else {
-                    showAlert('오류', data.error);
+                    showAlert('?ㅻ쪟', data.error);
                 }
             } catch(e) {
-                showAlert('네트워크 오류', '서버와 연결이 안됩니다.');
+                showAlert('?ㅽ듃?뚰겕 ?ㅻ쪟', '?쒕쾭? ?곌껐???덈맗?덈떎.');
             } finally {
                 const btn = document.getElementById("submitBtn");
-                btn.textContent = "✅ 이대로 제출하기"; btn.disabled = selectedBooks.length !== 3;
+                btn.textContent = "???대?濡??쒖텧?섍린"; btn.disabled = selectedBooks.length !== 3;
             }
         }
 
         function resetAll() {
             selectedGrade=""; selectedClass=""; selectedNumber=""; selectedBooks=[]; currentBooks=[];
             document.getElementById("searchInput").value = "";
-            document.getElementById("searchResults").innerHTML = '<div class="helper-card" style="grid-column: 1/-1;">보고 싶은 책을 검색해 보세요!</div>';
+            document.getElementById("searchResults").innerHTML = '<div class="helper-card" style="grid-column: 1/-1;">蹂닿퀬 ?띠? 梨낆쓣 寃?됲빐 蹂댁꽭??</div>';
             document.querySelectorAll(".game-btn").forEach(b => {b.classList.remove('active', 'primary')});
             document.querySelector(".mode-actions .game-btn").classList.add('active', 'primary');
             renderClassBtns(); renderNumBtns(); updateSummary(); freshBasket();
@@ -443,10 +443,10 @@
             document.getElementById("alertModal").classList.add('hidden');
         }
 
-        // --- 관리자 모드 기능 ---
+        // --- 愿由ъ옄 紐⑤뱶 湲곕뒫 ---
         async function adminLogin() {
             const pwd = document.getElementById("adminPassword").value.trim();
-            if(!pwd) { showAlert('', '비밀번호를 입력하세요.'); return; }
+            if(!pwd) { showAlert('', '鍮꾨?踰덊샇瑜??낅젰?섏꽭??'); return; }
             const r = await fetch("/api/admin/login", {
                 method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({password: pwd})
             });
@@ -457,7 +457,7 @@
                 loadAdminSubmissions();
                 loadCatalogInfo();
             } else {
-                showAlert('로그인 실패', d.error);
+                showAlert('濡쒓렇???ㅽ뙣', d.error);
             }
         }
         async function adminLogout() {
@@ -477,7 +477,7 @@
             if(r.ok) {
                 const b = document.getElementById("adminTableBody");
                 document.getElementById("adminCount").textContent = data.submissions.length;
-                if(!data.submissions.length) { b.innerHTML='<tr><td colspan="5" style="text-align:center;">결과가 없습니다.</td></tr>'; return; }
+                if(!data.submissions.length) { b.innerHTML='<tr><td colspan="5" style="text-align:center;">寃곌낵媛 ?놁뒿?덈떎.</td></tr>'; return; }
                 b.innerHTML = data.submissions.map(s => `
                 <tr>
                     <td>${s.timestamp}</td>
@@ -503,14 +503,14 @@
                 const r = await fetch("/api/admin/catalog");
                 const d = await r.json();
                 if(r.ok) {
-                    document.getElementById("catalogCount").textContent = (d.catalog || []).length + "권";
+                    document.getElementById("catalogCount").textContent = (d.catalog || []).length + "沅?;
                 }
             } catch(e) {}
         }
 
         async function uploadCatalog() {
             const fileInput = document.getElementById("catalogFile");
-            if(!fileInput.files[0]) { showAlert('경고', '업로드할 엑셀/CSV 파일을 먼저 선택하세요.'); return; }
+            if(!fileInput.files[0]) { showAlert('寃쎄퀬', '?낅줈?쒗븷 ?묒?/CSV ?뚯씪??癒쇱? ?좏깮?섏꽭??'); return; }
             
             const formData = new FormData();
             formData.append("file", fileInput.files[0]);
@@ -519,23 +519,23 @@
                 const r = await fetch("/api/admin/upload-catalog", { method:"POST", body:formData });
                 const d = await r.json();
                 if(d.success) {
-                    showAlert('업로드 성공', d.message);
+                    showAlert('?낅줈???깃났', d.message);
                     fileInput.value = "";
                     loadCatalogInfo();
                 } else {
-                    showAlert('오류', d.error);
+                    showAlert('?ㅻ쪟', d.error);
                 }
             } catch(e) {
-                showAlert('네트워크 오류', '업로드 중 오류가 발생했습니다.');
+                showAlert('?ㅽ듃?뚰겕 ?ㅻ쪟', '?낅줈??以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.');
             }
         }
 
         async function clearCatalog() {
-            if(!confirm("도서관 소장 목록 기준 데이터를 전부 삭제할까요?")) return;
+            if(!confirm("?꾩꽌愿 ?뚯옣 紐⑸줉 湲곗? ?곗씠?곕? ?꾨? ??젣?좉퉴??")) return;
             const r = await fetch("/api/admin/catalog", { method:"DELETE" });
             const d = await r.json();
             if(d.success) {
-                showAlert('삭제됨', '도서관 소장 목록을 비웠습니다.');
+                showAlert('??젣??, '?꾩꽌愿 ?뚯옣 紐⑸줉??鍮꾩썱?듬땲??');
                 loadCatalogInfo();
             }
         }
