@@ -138,89 +138,119 @@ def build_border():
 
 
 def build_admin_workbook(submissions):
+    """
+    첨부된 원본 양식과 동일한 엑셀 파일을 생성합니다.
+    - 학년/반 조합별로 별도 시트를 생성
+    - 각 시트는 원본 양식: 순 | 도서명 | 출판사 | 지은이 | 수량 | 금액(정가) | 할인금액
+    - 40행 데이터 + 합계행
+    """
     workbook = openpyxl.Workbook()
-    worksheet = workbook.active
-    worksheet.title = "신청결과"
+    # 기본 시트 제거용 (나중에 삭제)
+    default_sheet = workbook.active
 
-    headers = [
-        "제출시각",
-        "학년",
-        "반",
-        "번호",
-        "학생표시",
-        "1지망 도서명",
-        "1지망 저자",
-        "1지망 출판사",
-        "1지망 가격",
-        "2지망 도서명",
-        "2지망 저자",
-        "2지망 출판사",
-        "2지망 가격",
-        "3지망 도서명",
-        "3지망 저자",
-        "3지망 출판사",
-        "3지망 가격",
-    ]
-    worksheet.append(headers)
-
-    header_fill = PatternFill(start_color="D9EAF7", end_color="D9EAF7", fill_type="solid")
-    header_font = Font(bold=True)
     thin_border = build_border()
     center_align = Alignment(horizontal="center", vertical="center")
+    header_font = Font(name="맑은 고딕", bold=True, size=14)
+    col_header_font = Font(name="맑은 고딕", bold=True, size=10)
+    col_header_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 
-    for index, header in enumerate(headers, start=1):
-        cell = worksheet.cell(row=1, column=index, value=header)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.border = thin_border
-        cell.alignment = center_align
+    # 학년/반별로 제출 데이터 그룹핑
+    groups = {}
+    for sub in submissions:
+        key = (sub["grade"], sub["classNum"])
+        if key not in groups:
+            groups[key] = []
+        # 학생 한 명당 도서 3권을 각각 한 행으로 펼침
+        for book in sub.get("books", []):
+            groups[key].append(book)
 
-    for submission in submissions:
-        row = [
-            submission["timestamp"],
-            submission["grade"],
-            submission["classNum"],
-            submission["studentNumber"],
-            submission["studentLabel"],
-        ]
-        books = submission["books"]
-        for book_index in range(3):
-            book = books[book_index] if book_index < len(books) else {}
-            row.extend(
-                [
-                    book.get("title", ""),
-                    book.get("author", ""),
-                    book.get("publisher", ""),
-                    book.get("price", 0),
-                ]
-            )
-        worksheet.append(row)
+    # 제출이 없으면 빈 시트 하나 생성
+    if not groups:
+        groups[("", "")] = []
 
-    for row in worksheet.iter_rows():
-        for cell in row:
+    created_sheets = 0
+    for (grade, class_num), books in sorted(groups.items()):
+        if grade and class_num:
+            sheet_name = f"{grade}학년 {class_num}반"
+        elif grade:
+            sheet_name = f"{grade}학년"
+        else:
+            sheet_name = "희망도서"
+
+        ws = workbook.create_sheet(title=sheet_name)
+        created_sheets += 1
+
+        # ── 1행: 제목 (A1:G1 병합) ──
+        ws.merge_cells("A1:G1")
+        title_text = f"2026년 ({grade})학년 ({class_num})반 학생, 학부모 구입 희망도서 목록"
+        title_cell = ws.cell(row=1, column=1, value=title_text)
+        title_cell.font = header_font
+        title_cell.alignment = center_align
+
+        # ── 2행: 컬럼 헤더 (노란색) ──
+        col_headers = ["순", "도서명", "출판사", "지은이", "수량", "금액(정가)", "할인금액"]
+        for col_idx, header in enumerate(col_headers, 1):
+            cell = ws.cell(row=2, column=col_idx, value=header)
+            cell.font = col_header_font
+            cell.fill = col_header_fill
             cell.border = thin_border
+            cell.alignment = center_align
 
-    widths = {
-        "A": 20,
-        "B": 8,
-        "C": 8,
-        "D": 8,
-        "E": 18,
-        "F": 28,
-        "G": 16,
-        "H": 18,
-        "I": 10,
-        "J": 28,
-        "K": 16,
-        "L": 18,
-        "M": 10,
-        "N": 28,
-        "O": 16,
-        "P": 18,
-        "Q": 10,
-    }
-    for column, width in widths.items():
-        worksheet.column_dimensions[column].width = width
+        # ── 컬럼 너비 ──
+        ws.column_dimensions["A"].width = 5
+        ws.column_dimensions["B"].width = 35
+        ws.column_dimensions["C"].width = 15
+        ws.column_dimensions["D"].width = 15
+        ws.column_dimensions["E"].width = 8
+        ws.column_dimensions["F"].width = 12
+        ws.column_dimensions["G"].width = 12
+
+        # ── 3~42행: 40줄 데이터 영역 ──
+        for row_num in range(3, 43):
+            seq = row_num - 2
+            # 순번
+            ws.cell(row=row_num, column=1, value=seq).border = thin_border
+            ws.cell(row=row_num, column=1).alignment = center_align
+            # 나머지 열 빈칸 + 테두리
+            for col_idx in range(2, 8):
+                ws.cell(row=row_num, column=col_idx).border = thin_border
+
+            # 실제 도서 데이터 채우기
+            book_idx = seq - 1  # 0-based
+            if book_idx < len(books):
+                book = books[book_idx]
+                price = int(book.get("price", 0) or 0)
+                sale_price = int(book.get("salePrice", 0) or 0)
+                if not sale_price and price:
+                    sale_price = int(price * 0.9)
+
+                ws.cell(row=row_num, column=2, value=book.get("title", ""))
+                ws.cell(row=row_num, column=3, value=book.get("publisher", ""))
+                ws.cell(row=row_num, column=4, value=book.get("author", ""))
+                ws.cell(row=row_num, column=5, value=1)
+                ws.cell(row=row_num, column=5).alignment = center_align
+                ws.cell(row=row_num, column=6, value=price)
+                ws.cell(row=row_num, column=6).number_format = "#,##0"
+                ws.cell(row=row_num, column=7, value=sale_price)
+                ws.cell(row=row_num, column=7).number_format = "#,##0"
+            else:
+                # 빈 행의 할인금액에 0
+                ws.cell(row=row_num, column=7, value=0)
+                ws.cell(row=row_num, column=7).number_format = "#,##0"
+
+        # ── 43행: 합계 ──
+        ws.cell(row=43, column=2, value="계").alignment = center_align
+        ws.cell(row=43, column=2).font = col_header_font
+        ws.cell(row=43, column=2).border = thin_border
+        for col_idx in [1, 3, 4, 5, 6]:
+            ws.cell(row=43, column=col_idx).border = thin_border
+        ws.cell(row=43, column=7, value="=SUM(G3:G42)")
+        ws.cell(row=43, column=7).number_format = "#,##0"
+        ws.cell(row=43, column=7).border = thin_border
+
+    # 기본 빈 시트 제거
+    if created_sheets > 0 and default_sheet.title == "Sheet":
+        workbook.remove(default_sheet)
 
     return workbook
 
