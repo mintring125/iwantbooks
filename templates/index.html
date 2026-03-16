@@ -350,6 +350,12 @@
             if(selectedBooks.some(s => s.isbn===book.isbn && s.title===book.title)) return;
             selectedBooks.push(book);
             freshBasket();
+            if (selectedBooks.length === 3) {
+                document.querySelector('.basket-panel')?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            }
             drawBooks(currentBooks);
         }
         function removeBook(i) {
