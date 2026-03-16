@@ -10,6 +10,7 @@ import openpyxl
 import requests
 from flask import Flask, jsonify, render_template, request, send_file, session
 from flask_sqlalchemy import SQLAlchemy
+from openpyxl.styles import Alignment, Font, PatternFill
 from sqlalchemy import UniqueConstraint
 
 
@@ -122,7 +123,6 @@ def bootstrap_submissions_from_json():
         class_num = str(item.get("classNum", "")).strip()
         student_number = str(item.get("studentNumber", item.get("name", ""))).strip()
         books = item.get("books", [])
-
         if grade not in GRADE_OPTIONS:
             continue
         if class_num not in class_options_for_grade(grade):
@@ -130,8 +130,8 @@ def bootstrap_submissions_from_json():
         if student_number not in student_numbers_for_class(grade, class_num):
             continue
 
-        timestamp = str(item.get("timestamp", "")).strip()
         created_at = datetime.utcnow()
+        timestamp = str(item.get("timestamp", "")).strip()
         if timestamp:
             try:
                 created_at = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
@@ -217,7 +217,6 @@ def check_duplicate(book_title, book_isbn=""):
 
 def query_submissions(grade="", class_num=""):
     ensure_database_ready()
-
     query = Submission.query.order_by(
         Submission.grade.asc(),
         Submission.class_num.asc(),
@@ -237,7 +236,7 @@ def load_export_template_workbook():
     workbook = openpyxl.Workbook()
     worksheet = workbook.active
     worksheet.merge_cells("A1:G1")
-    worksheet["A1"] = "2026년 (   )학년 (   )반 학생, 학부모 구입 희망도서 목록"
+    worksheet["A1"] = "2026년 황지중앙초 학생, 학부모 구입 희망도서 목록"
     headers = ["순", "도서명", "출판사", "지은이", "수량", "금액(정가)", "할인금액"]
     for index, header in enumerate(headers, start=1):
         worksheet.cell(row=2, column=index, value=header)
@@ -258,8 +257,9 @@ def configure_export_sheet(worksheet):
     worksheet.page_margins.footer = 0.2
     worksheet.print_options.horizontalCentered = True
     worksheet.print_title_rows = "1:2"
+    worksheet.freeze_panes = "A3"
     worksheet.column_dimensions["A"].width = 8
-    worksheet.column_dimensions["B"].width = 32
+    worksheet.column_dimensions["B"].width = 42
     worksheet.column_dimensions["C"].width = 14
     worksheet.column_dimensions["D"].width = 14
     worksheet.column_dimensions["E"].width = 7
@@ -267,11 +267,22 @@ def configure_export_sheet(worksheet):
     worksheet.column_dimensions["G"].width = 11
     worksheet.row_dimensions[1].height = 42
     worksheet.row_dimensions[2].height = 30
+    worksheet["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    worksheet["A1"].font = Font(name="맑은 고딕", size=20)
+
+    header_fill = PatternFill(fill_type="solid", start_color="F4B183", end_color="F4B183")
+    center_alignment = Alignment(horizontal="center", vertical="center")
+    for col in range(1, 8):
+        worksheet.cell(row=2, column=col).fill = header_fill
+        worksheet.cell(row=2, column=col).alignment = center_alignment
 
 
-def fill_export_sheet(worksheet, grade, class_num, books):
+def fill_export_sheet(worksheet, grade, class_num, books, include_grade_class=True):
     configure_export_sheet(worksheet)
-    worksheet["A1"] = f"2026년 ( {grade} )학년 ( {class_num} )반 학생, 학부모 구입 희망도서 목록"
+    if include_grade_class and grade and class_num:
+        worksheet["A1"] = f"2026년 ( {grade} )학년 ( {class_num} )반 학생, 학부모 구입 희망도서 목록"
+    else:
+        worksheet["A1"] = "2026년 황지중앙초 학생, 학부모 구입 희망도서 목록"
 
     for row_num in range(3, 43):
         seq = row_num - 2
@@ -282,38 +293,51 @@ def fill_export_sheet(worksheet, grade, class_num, books):
             sale_price = int(price * 0.9)
 
         worksheet.cell(row=row_num, column=1, value=seq)
+        worksheet.cell(row=row_num, column=1).alignment = Alignment(horizontal="center", vertical="center")
         worksheet.cell(row=row_num, column=2, value=book.get("title", ""))
         worksheet.cell(row=row_num, column=3, value=book.get("publisher", ""))
         worksheet.cell(row=row_num, column=4, value=book.get("author", ""))
         worksheet.cell(row=row_num, column=5, value=1 if book else None)
+        worksheet.cell(row=row_num, column=5).alignment = Alignment(horizontal="center", vertical="center")
         worksheet.cell(row=row_num, column=6, value=price if book else None)
         worksheet.cell(row=row_num, column=7, value=sale_price if book else 0)
         worksheet.cell(row=row_num, column=6).number_format = "#,##0"
         worksheet.cell(row=row_num, column=7).number_format = "#,##0"
 
     worksheet.cell(row=43, column=2, value="계")
+    worksheet.cell(row=43, column=6, value="=SUM(F3:F42)")
+    worksheet.cell(row=43, column=6).number_format = "#,##0"
     worksheet.cell(row=43, column=7, value="=SUM(G3:G42)")
     worksheet.cell(row=43, column=7).number_format = "#,##0"
 
 
 def build_admin_workbook(submissions):
+    workbook = load_export_template_workbook()
+    template_sheet = workbook.active
+    template_sheet.title = "template"
+
     groups = {}
     for submission in submissions:
         key = (submission["grade"], submission["classNum"])
         groups.setdefault(key, [])
         groups[key].extend(submission.get("books", []))
 
-    if not groups:
-        groups[("", "")] = []
-
-    workbook = load_export_template_workbook()
-    template_sheet = workbook.active
-    template_sheet.title = "template"
-
-    for index, ((grade, class_num), books) in enumerate(sorted(groups.items())):
-        worksheet = template_sheet if index == 0 else workbook.copy_worksheet(template_sheet)
-        worksheet.title = f"{grade}학년 {class_num}반" if grade and class_num else "희망도서"
-        fill_export_sheet(worksheet, grade, class_num, books)
+    if not submissions:
+        worksheet = template_sheet
+        worksheet.title = "희망도서"
+        fill_export_sheet(worksheet, "", "", [], include_grade_class=False)
+    elif len(groups) == 1:
+        (grade, class_num), books = next(iter(sorted(groups.items())))
+        worksheet = template_sheet
+        worksheet.title = f"{grade}학년 {class_num}반"
+        fill_export_sheet(worksheet, grade, class_num, books, include_grade_class=True)
+    else:
+        all_books = []
+        for submission in submissions:
+            all_books.extend(submission.get("books", []))
+        worksheet = template_sheet
+        worksheet.title = "황지중앙초"
+        fill_export_sheet(worksheet, "", "", all_books, include_grade_class=False)
 
     if "template" in workbook.sheetnames and len(workbook.sheetnames) > 1:
         workbook.remove(workbook["template"])
@@ -392,7 +416,6 @@ def search_books():
 @app.route("/api/submit", methods=["POST"])
 def submit_books():
     ensure_database_ready()
-
     data = request.get_json() or {}
     grade = str(data.get("grade", "")).strip()
     class_num = str(data.get("classNum", "")).strip()
@@ -453,11 +476,9 @@ def submit_books():
 def admin_login():
     data = request.get_json() or {}
     password = str(data.get("password", "")).strip()
-
     if password != ADMIN_PASSWORD:
         session["is_admin"] = False
         return jsonify({"success": False, "error": "비밀번호가 올바르지 않습니다."}), 401
-
     session["is_admin"] = True
     return jsonify({"success": True})
 
@@ -473,7 +494,6 @@ def admin_submissions():
     ensure_database_ready()
     if not require_admin():
         return jsonify({"error": "관리자 인증이 필요합니다."}), 401
-
     grade = request.args.get("grade", "").strip()
     class_num = request.args.get("classNum", "").strip()
     return jsonify({"submissions": query_submissions(grade=grade, class_num=class_num)})
@@ -545,7 +565,6 @@ def upload_catalog():
             worksheet = workbook.active
             title_col = None
             isbn_col = None
-
             for col in range(1, worksheet.max_column + 1):
                 value = str(worksheet.cell(row=1, column=col).value or "").strip()
                 lowered = value.lower()
@@ -553,17 +572,14 @@ def upload_catalog():
                     title_col = col
                 elif "isbn" in lowered:
                     isbn_col = col
-
             if title_col is None:
                 title_col = 1
-
             for row in range(2, worksheet.max_row + 1):
                 title = str(worksheet.cell(row=row, column=title_col).value or "").strip()
                 if not title:
                     continue
                 isbn = str(worksheet.cell(row=row, column=isbn_col).value or "").strip() if isbn_col else ""
                 catalog_rows.append({"title": title, "isbn": isbn})
-
         elif filename.endswith(".csv"):
             wrapper = TextIOWrapper(uploaded_file.stream, encoding="utf-8-sig")
             reader = csv.DictReader(wrapper)
