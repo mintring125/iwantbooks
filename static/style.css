@@ -325,9 +325,6 @@ button, input, select {
 
 /* 바구니 패널이 스크롤 시 화면 하단에 고정되지만 바닥 부분을 가리지 않게 합니다. */
 .basket-panel {
-    position: sticky;
-    bottom: 20px;
-    z-index: 10;
     margin-bottom: 0;
 }
 
