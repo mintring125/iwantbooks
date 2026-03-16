@@ -351,6 +351,9 @@
             selectedBooks.push(book);
             freshBasket();
             drawBooks(currentBooks);
+            if(selectedBooks.length === 3) {
+                document.querySelector(".basket-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
         }
         function removeBook(i) {
             selectedBooks.splice(i, 1);

@@ -270,7 +270,7 @@ def configure_export_sheet(worksheet):
     worksheet["A1"].alignment = Alignment(horizontal="center", vertical="center")
     worksheet["A1"].font = Font(name="맑은 고딕", size=20)
 
-    header_fill = PatternFill(fill_type="solid", start_color="F4B183", end_color="F4B183")
+    header_fill = PatternFill(fill_type="solid", start_color="E8C840", end_color="E8C840")
     center_alignment = Alignment(horizontal="center", vertical="center")
     for col in range(1, 8):
         worksheet.cell(row=2, column=col).fill = header_fill

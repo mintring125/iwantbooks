@@ -160,6 +160,17 @@ button, input, select {
     min-width: 60px;
 }
 
+.grade-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.grade-grid .game-btn {
+    width: 100%;
+    min-width: 0;
+}
+
 .helper-card {
     background: #f0f0f0;
     border: 2px dashed #999;
@@ -489,6 +500,10 @@ button, input, select {
 }
 
 @media (max-width: 768px) {
+    .grade-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
     .search-row,
     .admin-login-box {
         flex-direction: column;
