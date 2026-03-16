@@ -128,6 +128,7 @@
                         <div class="admin-summary-actions">
                             <span style="font-weight:bold; padding: 12px;">총 제출: <span id="adminCount">0</span>명</span>
                             <button class="game-btn primary" type="button" onclick="downloadAdminXlsx()">엑셀 다운로드</button>
+                            <button class="game-btn" type="button" onclick="clearSubmissions()" style="background:var(--alert-bg); border-color:var(--alert-color); color:var(--alert-color);">데이터 초기화</button>
                             <button class="game-btn" type="button" onclick="adminLogout()">로그아웃</button>
                         </div>
                     </div>
@@ -527,6 +528,18 @@
             if(d.success) {
                 showAlert('삭제됨', '도서관 소장 목록을 비웠습니다.');
                 loadCatalogInfo();
+            }
+        }
+
+        async function clearSubmissions() {
+            if(!confirm("제출된 희망도서 데이터를 모두 삭제할까요?")) return;
+            const r = await fetch("/api/admin/submissions", { method:"DELETE" });
+            const d = await r.json();
+            if(d.success) {
+                showAlert('초기화 완료', `${d.deletedCount || 0}건의 제출 데이터를 삭제했습니다.`);
+                loadAdminSubmissions();
+            } else if(d.error) {
+                showAlert('오류', d.error);
             }
         }
     </script>

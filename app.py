@@ -499,6 +499,16 @@ def admin_submissions():
     return jsonify({"submissions": query_submissions(grade=grade, class_num=class_num)})
 
 
+@app.route("/api/admin/submissions", methods=["DELETE"])
+def clear_submissions():
+    ensure_database_ready()
+    if not require_admin():
+        return jsonify({"error": "愿由ъ옄 ?몄쬆???꾩슂?⑸땲??"}), 401
+    deleted_count = Submission.query.delete()
+    db.session.commit()
+    return jsonify({"success": True, "deletedCount": deleted_count})
+
+
 @app.route("/api/admin/export")
 def admin_export():
     ensure_database_ready()
