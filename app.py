@@ -33,6 +33,7 @@ db = SQLAlchemy(app)
 db_initialized = False
 
 ALADIN_API_KEY = os.environ.get("ALADIN_API_KEY", "ttbmintkaori0528001")
+ALADIN_SEARCH_URL = "https://www.aladin.co.kr/ttb/api/ItemSearch.aspx"
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "2026")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SUBMISSIONS_FILE = os.path.join(BASE_DIR, "submissions.json")
@@ -371,7 +372,7 @@ def search_books():
 
     try:
         response = requests.get(
-            "http://www.aladin.co.kr/ttb/api/ItemSearch.aspx",
+            ALADIN_SEARCH_URL,
             params={
                 "ttbkey": ALADIN_API_KEY,
                 "Query": query,
@@ -387,8 +388,28 @@ def search_books():
         )
         response.raise_for_status()
         data = response.json()
-    except Exception as exc:
-        return jsonify({"books": [], "error": f"검색 중 오류가 발생했습니다: {exc}"})
+    except requests.RequestException:
+        app.logger.exception("Aladin search request failed")
+        return (
+            jsonify(
+                {
+                    "books": [],
+                    "error": "알라딘 도서 검색에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+                }
+            ),
+            502,
+        )
+    except ValueError:
+        app.logger.exception("Aladin search response was not valid JSON")
+        return (
+            jsonify(
+                {
+                    "books": [],
+                    "error": "알라딘 도서 검색 응답을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.",
+                }
+            ),
+            502,
+        )
 
     books = []
     for item in data.get("item", []):
