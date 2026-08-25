@@ -12,6 +12,7 @@
 - **백엔드**: Python Flask
 - **프론트엔드**: HTML + Vanilla CSS + Vanilla JS (프레임워크 없음)
 - **도서 검색**: 알라딘 Open API (`https://aladin.co.kr/ttb/api/ItemSearch.aspx`)
+- **어린이 베스트셀러**: 알라딘 ItemList API 어린이 카테고리 50권(30분 캐시)
 - **복본 확인**: 선생님이 업로드한 소장 도서 목록 (엑셀/CSV) 기반 자동 매칭
 - **엑셀 저장**: openpyxl
 - **제출 기록**: JSON 파일 (`submissions.json`)
@@ -48,6 +49,7 @@ Claude Code가 이미 `app.py`를 구현했습니다. 현재 포함된 기능:
 |---|---|---|---|
 | `/` | GET | 메인 HTML 페이지 렌더링 | ✅ 구현됨 |
 | `/api/search?q=검색어` | GET | 알라딘 API 중계 → 도서 검색 결과 JSON | ✅ 구현됨 |
+| `/api/bestsellers` | GET | 알라딘 어린이 분야 베스트셀러 50권 | ✅ 구현됨 |
 | `/api/submit` | POST | 학생 정보 + 선택 도서 3권 → 엑셀 저장 | ✅ 구현됨 |
 | `/api/admin/login` | POST | 관리자 로그인 (비밀번호: `2026`) | ✅ 구현됨 |
 | `/api/admin/logout` | POST | 관리자 로그아웃 | ✅ 구현됨 |

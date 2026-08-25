@@ -13,6 +13,7 @@
 - `ADMIN_PASSWORD`: `2026`
 - `ALADIN_API_KEY`: 알라딘 TTB Key
 - `ALADIN_SEARCH_URL`: `https://aladin.co.kr/ttb/api/ItemSearch.aspx`
+- `ALADIN_LIST_URL`: `https://aladin.co.kr/ttb/api/ItemList.aspx`
 
 ## 4. 실행 설정
 - 이 저장소에는 이미 `requirements.txt`, `Procfile`, `railway.json`이 들어 있습니다.
@@ -29,3 +30,5 @@
 ## 7. 주의
 - 이제 학생 제출 데이터는 JSON 파일이 아니라 DB에 저장됩니다.
 - 관리자 `xlsx` 다운로드는 DB 데이터를 기준으로 즉시 생성됩니다.
+- 어린이 베스트셀러는 알라딘 어린이 카테고리에서 50권을 가져오며 30분간 캐시합니다.
+- 소장 목록은 관리자 화면에서 `.xlsx`, `.xls`, `.csv` 형식으로 업로드할 수 있습니다.

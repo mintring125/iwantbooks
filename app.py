@@ -2,12 +2,14 @@ import csv
 import json
 import os
 import re
+import time
 import unicodedata
 from datetime import datetime
 from io import BytesIO, TextIOWrapper
 
 import openpyxl
 import requests
+import xlrd
 from flask import Flask, jsonify, render_template, request, send_file, session
 from flask_sqlalchemy import SQLAlchemy
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -37,6 +39,13 @@ ALADIN_SEARCH_URL = os.environ.get(
     "ALADIN_SEARCH_URL",
     "https://aladin.co.kr/ttb/api/ItemSearch.aspx",
 ).strip()
+ALADIN_LIST_URL = os.environ.get(
+    "ALADIN_LIST_URL",
+    "https://aladin.co.kr/ttb/api/ItemList.aspx",
+).strip()
+ALADIN_CHILDREN_CATEGORY_ID = 1108
+BESTSELLER_CACHE_SECONDS = 30 * 60
+bestseller_cache = {"expires_at": 0.0, "items": []}
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "2026")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SUBMISSIONS_FILE = os.path.join(BASE_DIR, "submissions.json")
@@ -197,19 +206,28 @@ def ensure_database_ready():
     db_initialized = True
 
 
-def check_duplicate(book_title, book_isbn=""):
+def load_catalog_index():
     ensure_database_ready()
 
+    rows = CatalogBook.query.with_entities(
+        CatalogBook.normalized_title,
+        CatalogBook.isbn,
+    ).all()
+    titles = {row[0] for row in rows if row[0]}
+    isbns = {row[1] for row in rows if row[1]}
+    return titles, isbns
+
+
+def is_catalog_duplicate(book_title, book_isbn, catalog_titles, catalog_isbns):
     clean_isbn = normalize_isbn(book_isbn)
-    if clean_isbn and db.session.query(CatalogBook.id).filter(CatalogBook.isbn == clean_isbn).first():
+    if clean_isbn and clean_isbn in catalog_isbns:
         return True
 
     normalized_query = normalize_title(book_title)
     if not normalized_query:
         return False
 
-    for row in CatalogBook.query.with_entities(CatalogBook.normalized_title).all():
-        normalized_catalog = row[0]
+    for normalized_catalog in catalog_titles:
         if normalized_catalog and (
             normalized_query == normalized_catalog
             or normalized_query in normalized_catalog
@@ -217,6 +235,110 @@ def check_duplicate(book_title, book_isbn=""):
         ):
             return True
     return False
+
+
+def check_duplicate(book_title, book_isbn=""):
+    catalog_titles, catalog_isbns = load_catalog_index()
+    return is_catalog_duplicate(
+        book_title,
+        book_isbn,
+        catalog_titles,
+        catalog_isbns,
+    )
+
+
+def request_aladin_items(url, params):
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+    except requests.RequestException as exc:
+        status_code = getattr(getattr(exc, "response", None), "status_code", None)
+        app.logger.warning(
+            "Aladin request failed: %s (status=%s)",
+            type(exc).__name__,
+            status_code or "network",
+        )
+        raise
+    except ValueError:
+        app.logger.warning("Aladin response was not valid JSON")
+        raise
+
+    if data.get("errorCode"):
+        app.logger.warning("Aladin API rejected request: code=%s", data.get("errorCode"))
+        raise requests.HTTPError("Aladin API rejected the request")
+    return data.get("item", [])
+
+
+def serialize_aladin_books(items):
+    catalog_titles, catalog_isbns = load_catalog_index()
+    books = []
+    for item in items:
+        title = item.get("title", "")
+        isbn = item.get("isbn13", item.get("isbn", ""))
+        books.append(
+            {
+                "title": title,
+                "author": item.get("author", ""),
+                "publisher": item.get("publisher", ""),
+                "price": item.get("priceStandard", 0),
+                "salePrice": item.get("priceSales", 0),
+                "cover": item.get("cover", ""),
+                "description": item.get("description", ""),
+                "isbn": isbn,
+                "link": item.get("link", ""),
+                "categoryName": item.get("categoryName", ""),
+                "pubDate": item.get("pubDate", ""),
+                "isDuplicate": is_catalog_duplicate(
+                    title,
+                    isbn,
+                    catalog_titles,
+                    catalog_isbns,
+                ),
+            }
+        )
+    return books
+
+
+def cell_text(value):
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+
+def extract_catalog_rows(rows):
+    matrix = [list(row) for row in rows]
+    title_col = None
+    isbn_col = None
+    header_row = None
+
+    for row_index, row in enumerate(matrix[:20]):
+        for col_index, raw_value in enumerate(row):
+            value = cell_text(raw_value)
+            lowered = value.lower()
+            if any(token in value for token in ["도서명", "서명", "제목", "자료명"]):
+                title_col = col_index
+                header_row = row_index
+            elif "isbn" in lowered:
+                isbn_col = col_index
+        if title_col is not None:
+            break
+
+    if title_col is None or header_row is None:
+        raise ValueError("도서명 또는 서명(자료명) 열을 찾지 못했습니다.")
+
+    catalog_rows = []
+    for row in matrix[header_row + 1 :]:
+        if title_col >= len(row):
+            continue
+        title = cell_text(row[title_col])
+        if not title:
+            continue
+        isbn = cell_text(row[isbn_col]) if isbn_col is not None and isbn_col < len(row) else ""
+        catalog_rows.append({"title": title, "isbn": isbn})
+    return catalog_rows
 
 
 def query_submissions(grade="", class_num=""):
@@ -374,9 +496,9 @@ def search_books():
         return jsonify({"books": [], "error": "알라딘 API 키가 설정되어 있지 않습니다."})
 
     try:
-        response = requests.get(
+        items = request_aladin_items(
             ALADIN_SEARCH_URL,
-            params={
+            {
                 "ttbkey": ALADIN_API_KEY,
                 "Query": query,
                 "QueryType": "Keyword",
@@ -387,12 +509,8 @@ def search_books():
                 "Version": "20131101",
                 "Cover": "Big",
             },
-            timeout=10,
         )
-        response.raise_for_status()
-        data = response.json()
     except requests.RequestException:
-        app.logger.exception("Aladin search request failed")
         return (
             jsonify(
                 {
@@ -403,7 +521,6 @@ def search_books():
             502,
         )
     except ValueError:
-        app.logger.exception("Aladin search response was not valid JSON")
         return (
             jsonify(
                 {
@@ -414,27 +531,46 @@ def search_books():
             502,
         )
 
-    books = []
-    for item in data.get("item", []):
-        title = item.get("title", "")
-        isbn = item.get("isbn13", item.get("isbn", ""))
-        books.append(
-            {
-                "title": title,
-                "author": item.get("author", ""),
-                "publisher": item.get("publisher", ""),
-                "price": item.get("priceStandard", 0),
-                "salePrice": item.get("priceSales", 0),
-                "cover": item.get("cover", ""),
-                "description": item.get("description", ""),
-                "isbn": isbn,
-                "link": item.get("link", ""),
-                "categoryName": item.get("categoryName", ""),
-                "pubDate": item.get("pubDate", ""),
-                "isDuplicate": check_duplicate(title, isbn),
-            }
-        )
-    return jsonify({"books": books})
+    return jsonify({"books": serialize_aladin_books(items)})
+
+
+@app.route("/api/bestsellers")
+def children_bestsellers():
+    if not ALADIN_API_KEY:
+        return jsonify({"books": [], "error": "알라딘 API 키가 설정되어 있지 않습니다."})
+
+    now = time.monotonic()
+    items = bestseller_cache["items"]
+    if not items or now >= bestseller_cache["expires_at"]:
+        try:
+            items = request_aladin_items(
+                ALADIN_LIST_URL,
+                {
+                    "ttbkey": ALADIN_API_KEY,
+                    "QueryType": "Bestseller",
+                    "MaxResults": 50,
+                    "start": 1,
+                    "SearchTarget": "Book",
+                    "CategoryId": ALADIN_CHILDREN_CATEGORY_ID,
+                    "output": "js",
+                    "Version": "20131101",
+                    "Cover": "Big",
+                },
+            )
+        except (requests.RequestException, ValueError):
+            return (
+                jsonify(
+                    {
+                        "books": [],
+                        "error": "어린이 베스트셀러를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+                    }
+                ),
+                502,
+            )
+        bestseller_cache["items"] = items
+        bestseller_cache["expires_at"] = now + BESTSELLER_CACHE_SECONDS
+
+    return jsonify({"books": serialize_aladin_books(items)})
 
 
 @app.route("/api/submit", methods=["POST"])
@@ -566,8 +702,7 @@ def get_catalog():
     ensure_database_ready()
     if not require_admin():
         return jsonify({"error": "관리자 인증이 필요합니다."}), 401
-    books = CatalogBook.query.order_by(CatalogBook.title.asc()).all()
-    return jsonify({"catalog": [book.to_dict() for book in books]})
+    return jsonify({"count": CatalogBook.query.count()})
 
 
 @app.route("/api/admin/catalog", methods=["DELETE"])
@@ -591,46 +726,30 @@ def upload_catalog():
         return jsonify({"success": False, "error": "파일을 선택해 주세요."})
 
     filename = uploaded_file.filename.lower()
-    catalog_rows = []
-
     try:
-        if filename.endswith((".xlsx", ".xls")):
+        if filename.endswith(".xlsx"):
             workbook = openpyxl.load_workbook(uploaded_file, data_only=True)
             worksheet = workbook.active
-            title_col = None
-            isbn_col = None
-            for col in range(1, worksheet.max_column + 1):
-                value = str(worksheet.cell(row=1, column=col).value or "").strip()
-                lowered = value.lower()
-                if any(token in value for token in ["도서명", "서명", "제목", "자료명"]):
-                    title_col = col
-                elif "isbn" in lowered:
-                    isbn_col = col
-            if title_col is None:
-                title_col = 1
-            for row in range(2, worksheet.max_row + 1):
-                title = str(worksheet.cell(row=row, column=title_col).value or "").strip()
-                if not title:
-                    continue
-                isbn = str(worksheet.cell(row=row, column=isbn_col).value or "").strip() if isbn_col else ""
-                catalog_rows.append({"title": title, "isbn": isbn})
+            catalog_rows = extract_catalog_rows(
+                worksheet.iter_rows(values_only=True)
+            )
+        elif filename.endswith(".xls"):
+            workbook = xlrd.open_workbook(file_contents=uploaded_file.read())
+            worksheet = workbook.sheet_by_index(0)
+            catalog_rows = extract_catalog_rows(
+                worksheet.row_values(row_index)
+                for row_index in range(worksheet.nrows)
+            )
         elif filename.endswith(".csv"):
             wrapper = TextIOWrapper(uploaded_file.stream, encoding="utf-8-sig")
-            reader = csv.DictReader(wrapper)
-            for row in reader:
-                title = (
-                    row.get("도서명")
-                    or row.get("서명")
-                    or row.get("제목")
-                    or row.get("자료명")
-                    or ""
-                ).strip()
-                if not title:
-                    continue
-                isbn = (row.get("ISBN") or row.get("isbn") or row.get("isbn13") or "").strip()
-                catalog_rows.append({"title": title, "isbn": isbn})
+            catalog_rows = extract_catalog_rows(csv.reader(wrapper))
         else:
-            return jsonify({"success": False, "error": "xlsx 또는 csv 파일만 업로드할 수 있습니다."})
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "xlsx, xls 또는 csv 파일만 업로드할 수 있습니다.",
+                }
+            )
     except Exception as exc:
         return jsonify({"success": False, "error": f"파일 처리 중 오류가 발생했습니다: {exc}"})
 

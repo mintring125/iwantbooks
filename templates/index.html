@@ -55,6 +55,25 @@
                 </div>
             </section>
 
+            <section class="panel bestseller-panel" aria-labelledby="bestsellerHeading">
+                <div class="panel-head bestseller-head">
+                    <div>
+                        <h2 id="bestsellerHeading">🌟 지금 인기 있는 어린이 책</h2>
+                        <p>알라딘 어린이 분야 베스트셀러 50권을 둘러보세요.</p>
+                    </div>
+                    <div class="bestseller-controls" aria-label="베스트셀러 이동 버튼">
+                        <button class="game-btn bestseller-arrow" type="button" onclick="scrollBestsellers(-1)" aria-label="이전 책 보기">←</button>
+                        <button class="game-btn bestseller-arrow" type="button" onclick="scrollBestsellers(1)" aria-label="다음 책 보기">→</button>
+                    </div>
+                </div>
+                <div id="bestsellerTrack" class="bestseller-track" tabindex="0" aria-label="어린이 베스트셀러 목록">
+                    <div class="helper-card">인기 어린이 책을 불러오는 중입니다...</div>
+                </div>
+                <p class="bestseller-source">
+                    자료 제공: <a href="https://www.aladin.co.kr/" target="_blank" rel="noopener noreferrer">알라딘</a>
+                </p>
+            </section>
+
             <section class="panel">
                 <div class="panel-head">
                     <h2>2️⃣ 책 검색하고 고르기</h2>
@@ -187,6 +206,10 @@
         let selectedNumber = "";
         let selectedBooks = [];
         let currentBooks = [];
+        let bestsellerBooks = [];
+        let bestsellerAnimationId = null;
+        let bestsellerLastTime = 0;
+        let bestsellerPaused = false;
 
         document.getElementById("searchInput").addEventListener("keypress", (e) => {
             if (e.key === "Enter") searchBooks();
@@ -282,6 +305,69 @@
             }
             return true;
         }
+
+        async function loadBestsellers() {
+            const track = document.getElementById("bestsellerTrack");
+            try {
+                const response = await fetch("/api/bestsellers");
+                const data = await response.json();
+                if(!response.ok || data.error) throw new Error(data.error || "불러오기 실패");
+                bestsellerBooks = data.books || [];
+                if(!bestsellerBooks.length) throw new Error("목록 없음");
+
+                track.innerHTML = bestsellerBooks.map((book, index) => {
+                    const cover = book.cover || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='210'><rect width='150' height='210' fill='%23e6eef9'/></svg>";
+                    const ownedBadge = book.isDuplicate
+                        ? '<span class="bestseller-owned">도서관에 있어요</span>'
+                        : '';
+                    return `
+                        <a class="bestseller-card" href="${escapeHtml(book.link || 'https://www.aladin.co.kr/')}" target="_blank" rel="noopener noreferrer" aria-label="${index + 1}위 ${escapeHtml(book.title)} 알라딘에서 보기">
+                            <span class="bestseller-rank">${index + 1}</span>
+                            ${ownedBadge}
+                            <img src="${escapeHtml(cover)}" alt="${escapeHtml(book.title)} 표지" loading="lazy">
+                            <strong>${escapeHtml(book.title)}</strong>
+                            <span>${escapeHtml(book.author)}</span>
+                        </a>
+                    `;
+                }).join('');
+                startBestsellerMotion();
+            } catch(error) {
+                track.innerHTML = '<div class="helper-card">지금은 인기 어린이 책을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</div>';
+            }
+        }
+
+        function scrollBestsellers(direction) {
+            const track = document.getElementById("bestsellerTrack");
+            const firstCard = track.querySelector(".bestseller-card");
+            const distance = firstCard ? firstCard.getBoundingClientRect().width + 16 : 300;
+            track.scrollBy({ left: direction * distance * 2, behavior: "smooth" });
+        }
+
+        function startBestsellerMotion() {
+            if(window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+            cancelAnimationFrame(bestsellerAnimationId);
+            bestsellerLastTime = 0;
+
+            const animate = (time) => {
+                const track = document.getElementById("bestsellerTrack");
+                if(bestsellerLastTime && !bestsellerPaused && track.scrollWidth > track.clientWidth) {
+                    const elapsed = Math.min(time - bestsellerLastTime, 50);
+                    track.scrollLeft += elapsed * 0.022;
+                    if(track.scrollLeft + track.clientWidth >= track.scrollWidth - 2) {
+                        track.scrollLeft = 0;
+                    }
+                }
+                bestsellerLastTime = time;
+                bestsellerAnimationId = requestAnimationFrame(animate);
+            };
+            bestsellerAnimationId = requestAnimationFrame(animate);
+        }
+
+        const bestsellerTrack = document.getElementById("bestsellerTrack");
+        bestsellerTrack.addEventListener("mouseenter", () => bestsellerPaused = true);
+        bestsellerTrack.addEventListener("mouseleave", () => bestsellerPaused = false);
+        bestsellerTrack.addEventListener("focusin", () => bestsellerPaused = true);
+        bestsellerTrack.addEventListener("focusout", () => bestsellerPaused = false);
 
         async function searchBooks() {
             if(!ensureInfo()) return;
@@ -536,7 +622,7 @@
                 const r = await fetch("/api/admin/catalog");
                 const d = await r.json();
                 if(r.ok) {
-                    document.getElementById("catalogCount").textContent = (d.catalog || []).length + "권";
+                    document.getElementById("catalogCount").textContent = (d.count || 0).toLocaleString() + "권";
                 }
             } catch(e) {}
         }
@@ -584,6 +670,8 @@
                 showAlert('오류', d.error);
             }
         }
+
+        loadBestsellers();
     </script>
 </body>
 </html>
