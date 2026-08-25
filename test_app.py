@@ -220,6 +220,8 @@ class SearchBooksTest(unittest.TestCase):
         html = response.get_data(as_text=True)
 
         self.assertEqual(response.status_code, 200)
+        self.assertIn('class="site-brand"', html)
+        self.assertIn('src="/static/hwangji-book-request-header.png"', html)
         self.assertIn('id="bestsellerTab"', html)
         self.assertIn('id="gradePopularTab"', html)
         self.assertIn('id="gradePopularView" class="recommendation-group grade-popular-group hidden"', html)

@@ -112,10 +112,17 @@ button, input, select {
     gap: 16px;
 }
 
-.hero h1 {
-    font-size: 1.8rem;
-    font-weight: 800;
-    text-shadow: 2px 2px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;
+.site-brand {
+    flex: 1 1 420px;
+    max-width: 520px;
+    line-height: 0;
+}
+
+.site-brand img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius-sm);
 }
 
 .mode-actions {
@@ -793,6 +800,11 @@ button, input, select {
         align-items: stretch;
     }
 
+    .site-brand {
+        width: 100%;
+        margin: 0 auto;
+    }
+
     .mode-actions .game-btn {
         flex: 1;
         min-width: 0;
@@ -818,8 +830,8 @@ button, input, select {
         padding: 16px 10px 40px;
     }
 
-    .hero h1 {
-        font-size: 1.4rem;
+    .site-brand {
+        max-width: 100%;
     }
 
     .search-input {
