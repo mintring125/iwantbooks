@@ -193,7 +193,6 @@ button, input, select {
 .bestseller-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 16px;
 }
 
@@ -201,19 +200,6 @@ button, input, select {
     margin-top: 5px;
     color: var(--text-muted);
     font-weight: 700;
-}
-
-.bestseller-controls {
-    display: flex;
-    flex: 0 0 auto;
-    gap: 8px;
-}
-
-.bestseller-arrow {
-    width: 48px;
-    min-width: 48px;
-    padding: 8px 0;
-    font-size: 1.25rem;
 }
 
 .bestseller-track {
@@ -666,10 +652,6 @@ button, input, select {
 }
 
 @media (max-width: 768px) {
-    .bestseller-head {
-        align-items: flex-start;
-    }
-
     .bestseller-card {
         flex-basis: 135px;
     }
@@ -744,11 +726,4 @@ button, input, select {
         grid-template-columns: 1fr;
     }
 
-    .bestseller-head {
-        flex-direction: column;
-    }
-
-    .bestseller-controls {
-        align-self: flex-end;
-    }
 }
