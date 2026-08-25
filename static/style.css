@@ -244,6 +244,8 @@ button, input, select {
     cursor: pointer;
     font-weight: 800;
     padding: 11px 10px;
+    white-space: nowrap;
+    word-break: keep-all;
 }
 
 .recommendation-tab.active {
@@ -943,6 +945,12 @@ button, input, select {
     .search-input {
         font-size: 1rem;
         padding: 10px 12px;
+    }
+
+    .recommendation-tab {
+        padding-inline: 2px;
+        font-size: clamp(0.7rem, 3.4vw, 0.85rem);
+        letter-spacing: -0.05em;
     }
 
     .book-grid {
