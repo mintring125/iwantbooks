@@ -44,8 +44,9 @@ ALADIN_LIST_URL = os.environ.get(
     "https://www.aladin.co.kr/ttb/api/ItemList.aspx",
 ).strip()
 ALADIN_CHILDREN_CATEGORY_ID = 1108
-BESTSELLER_CACHE_SECONDS = 30 * 60
-bestseller_cache = {"expires_at": 0.0, "items": []}
+BESTSELLER_CACHE_SECONDS = 6 * 60 * 60
+BESTSELLER_RETRY_SECONDS = 10 * 60
+bestseller_cache = {"expires_at": 0.0, "retry_after": 0.0, "items": []}
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "2026")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SUBMISSIONS_FILE = os.path.join(BASE_DIR, "submissions.json")
@@ -98,6 +99,12 @@ class CatalogBook(db.Model):
 
     def to_dict(self):
         return {"title": self.title, "isbn": self.isbn or ""}
+
+
+class ApiCache(db.Model):
+    key = db.Column(db.String(64), primary_key=True)
+    value_json = db.Column(db.Text, nullable=False)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
 def class_options_for_grade(grade):
@@ -306,6 +313,28 @@ def serialize_aladin_books(items):
             }
         )
     return books
+
+
+def load_persisted_bestsellers():
+    ensure_database_ready()
+    cache_row = db.session.get(ApiCache, "children_bestsellers")
+    if not cache_row:
+        return [], None
+    try:
+        items = json.loads(cache_row.value_json)
+    except (TypeError, ValueError):
+        return [], cache_row.updated_at
+    return items if isinstance(items, list) else [], cache_row.updated_at
+
+
+def save_persisted_bestsellers(items):
+    cache_row = db.session.get(ApiCache, "children_bestsellers")
+    if cache_row is None:
+        cache_row = ApiCache(key="children_bestsellers", value_json="[]")
+        db.session.add(cache_row)
+    cache_row.value_json = json.dumps(items, ensure_ascii=False)
+    cache_row.updated_at = datetime.now()
+    db.session.commit()
 
 
 def cell_text(value):
@@ -549,7 +578,24 @@ def children_bestsellers():
 
     now = time.monotonic()
     items = bestseller_cache["items"]
-    if not items or now >= bestseller_cache["expires_at"]:
+    persisted_items, persisted_at = load_persisted_bestsellers()
+    persisted_is_fresh = bool(
+        persisted_items
+        and persisted_at
+        and (datetime.now() - persisted_at).total_seconds()
+        < BESTSELLER_CACHE_SECONDS
+    )
+
+    if not items and persisted_is_fresh:
+        items = persisted_items
+        bestseller_cache["items"] = items
+        bestseller_cache["expires_at"] = now + BESTSELLER_CACHE_SECONDS
+
+    should_refresh = (
+        (not items or now >= bestseller_cache["expires_at"])
+        and now >= bestseller_cache["retry_after"]
+    )
+    if should_refresh:
         try:
             items = request_aladin_items(
                 ALADIN_LIST_URL,
@@ -565,18 +611,25 @@ def children_bestsellers():
                     "Cover": "Big",
                 },
             )
+            save_persisted_bestsellers(items)
+            bestseller_cache["items"] = items
+            bestseller_cache["expires_at"] = now + BESTSELLER_CACHE_SECONDS
+            bestseller_cache["retry_after"] = 0.0
         except (requests.RequestException, ValueError):
-            return (
-                jsonify(
-                    {
-                        "books": [],
-                        "error": "어린이 베스트셀러를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
-                    }
-                ),
-                502,
-            )
-        bestseller_cache["items"] = items
-        bestseller_cache["expires_at"] = now + BESTSELLER_CACHE_SECONDS
+            bestseller_cache["retry_after"] = now + BESTSELLER_RETRY_SECONDS
+            if not items:
+                items = persisted_items
+
+    if not items:
+        return (
+            jsonify(
+                {
+                    "books": [],
+                    "error": "어린이 베스트셀러를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+                }
+            ),
+            502,
+        )
 
     return jsonify({"books": serialize_aladin_books(items)})
 
@@ -782,6 +835,23 @@ def upload_catalog():
             "count": len(catalog_rows),
         }
     )
+
+
+@app.route("/api/admin/bestseller-cache", methods=["POST"])
+def update_bestseller_cache():
+    ensure_database_ready()
+    if not require_admin():
+        return jsonify({"error": "관리자 인증이 필요합니다."}), 401
+
+    items = (request.get_json() or {}).get("items", [])
+    if not isinstance(items, list) or not 1 <= len(items) <= 50:
+        return jsonify({"success": False, "error": "1~50권의 목록이 필요합니다."}), 400
+
+    save_persisted_bestsellers(items)
+    bestseller_cache["items"] = items
+    bestseller_cache["expires_at"] = time.monotonic() + BESTSELLER_CACHE_SECONDS
+    bestseller_cache["retry_after"] = 0.0
+    return jsonify({"success": True, "count": len(items)})
 
 
 if __name__ == "__main__":

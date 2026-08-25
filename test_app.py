@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime
 from unittest.mock import patch
 
 import requests
@@ -14,6 +15,11 @@ class DummySearchResponse:
         return {"item": []}
 
 
+class DummyBestsellerResponse(DummySearchResponse):
+    def json(self):
+        return {"item": [{"title": "긴긴밤", "author": "루리"}]}
+
+
 class SearchBooksTest(unittest.TestCase):
     def setUp(self):
         app_module.app.config["TESTING"] = True
@@ -22,6 +28,7 @@ class SearchBooksTest(unittest.TestCase):
         self.api_key_patch.start()
         app_module.bestseller_cache["items"] = []
         app_module.bestseller_cache["expires_at"] = 0.0
+        app_module.bestseller_cache["retry_after"] = 0.0
 
     def tearDown(self):
         self.api_key_patch.stop()
@@ -55,11 +62,15 @@ class SearchBooksTest(unittest.TestCase):
         self.assertNotIn("ttbkey", data["error"])
 
     def test_children_bestsellers_use_children_category_and_fifty_results(self):
-        with patch.object(app_module.requests, "get", return_value=DummySearchResponse()) as mock_get:
+        with patch.object(
+            app_module.requests,
+            "get",
+            return_value=DummyBestsellerResponse(),
+        ) as mock_get:
             response = self.client.get("/api/bestsellers")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {"books": []})
+        self.assertEqual(response.get_json()["books"][0]["title"], "긴긴밤")
         self.assertEqual(
             mock_get.call_args.args[0],
             "https://www.aladin.co.kr/ttb/api/ItemList.aspx",
@@ -104,6 +115,26 @@ class SearchBooksTest(unittest.TestCase):
                 set(),
             )
         )
+
+    def test_bestsellers_use_fresh_persisted_cache_without_api_call(self):
+        cached_item = {
+            "title": "긴긴밤",
+            "author": "루리",
+            "isbn13": "9788954677158",
+        }
+        with (
+            patch.object(
+                app_module,
+                "load_persisted_bestsellers",
+                return_value=([cached_item], datetime.now()),
+            ),
+            patch.object(app_module.requests, "get") as mock_get,
+        ):
+            response = self.client.get("/api/bestsellers")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["books"][0]["title"], "긴긴밤")
+        mock_get.assert_not_called()
 
 
 if __name__ == "__main__":
