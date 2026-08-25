@@ -59,14 +59,31 @@
                 <div class="panel-head bestseller-head">
                     <div>
                         <h2 id="bestsellerHeading">🌟 지금 인기 있는 어린이 책</h2>
-                        <p>알라딘 어린이 분야 베스트셀러 50권을 둘러보세요.</p>
+                        <p>전체 베스트셀러와 내 학년에 맞는 인기책을 함께 둘러보세요.</p>
                     </div>
                 </div>
-                <div id="bestsellerTrack" class="bestseller-track" tabindex="0" aria-label="어린이 베스트셀러 목록">
-                    <div class="helper-card">인기 어린이 책을 불러오는 중입니다...</div>
+
+                <div class="recommendation-group">
+                    <div class="recommendation-title-row">
+                        <h3>🏆 어린이 베스트셀러</h3>
+                        <span>전체 어린이 분야</span>
+                    </div>
+                    <div id="bestsellerTrack" class="bestseller-track" tabindex="0" aria-label="어린이 베스트셀러 목록">
+                        <div class="helper-card">인기 어린이 책을 불러오는 중입니다...</div>
+                    </div>
+                </div>
+
+                <div class="recommendation-group grade-popular-group">
+                    <div class="recommendation-title-row">
+                        <h3 id="gradePopularHeading">🎒 학년별 인기책</h3>
+                        <span id="gradePopularCaption">학년을 선택하면 맞춤 인기책이 나타나요.</span>
+                    </div>
+                    <div id="gradePopularTrack" class="bestseller-track" tabindex="0" aria-label="선택한 학년 인기책 목록">
+                        <div class="helper-card">위에서 학년을 선택해 주세요.</div>
+                    </div>
                 </div>
                 <p class="bestseller-source">
-                    자료 제공: <a href="https://www.aladin.co.kr/" target="_blank" rel="noopener noreferrer">알라딘</a>
+                    순위 및 도서 정보 제공: <a href="https://www.aladin.co.kr/" target="_blank" rel="noopener noreferrer">알라딘</a>
                 </p>
             </section>
 
@@ -214,9 +231,12 @@
         let selectedBooks = [];
         let currentBooks = [];
         let bestsellerBooks = [];
+        let gradePopularBooks = [];
+        let gradePopularRequestId = 0;
+        const gradePopularClientCache = {};
         let bestsellerAnimationId = null;
         let bestsellerLastTime = 0;
-        let bestsellerPaused = false;
+        const pausedRecommendationTracks = new WeakSet();
         let pendingDuplicateBook = null;
 
         document.getElementById("searchInput").addEventListener("keypress", (e) => {
@@ -255,6 +275,7 @@
             renderClassBtns();
             renderNumBtns();
             updateSummary();
+            loadGradePopularBooks(val);
         }
         function selectClass(val) {
             selectedClass = val; selectedNumber = "";
@@ -315,6 +336,41 @@
             return true;
         }
 
+        function gradeBandForGrade(grade) {
+            if(grade === "1" || grade === "2") return "1·2학년";
+            if(grade === "3" || grade === "4") return "3·4학년";
+            if(grade === "5" || grade === "6") return "5·6학년";
+            return "";
+        }
+
+        function booksForRecommendationList(listName) {
+            return listName === "grade" ? gradePopularBooks : bestsellerBooks;
+        }
+
+        function renderRecommendationTrack(trackId, books, listName) {
+            const track = document.getElementById(trackId);
+            track.innerHTML = books.map((book, index) => {
+                const cover = book.cover || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='210'><rect width='150' height='210' fill='%23e6eef9'/></svg>";
+                const ownedBadge = book.isDuplicate
+                    ? '<span class="bestseller-owned">도서관에 있어요</span>'
+                    : '';
+                return `
+                    <div class="bestseller-card">
+                        <button class="bestseller-summary-button" type="button" onclick="openRecommendationSummary('${listName}', ${index})" aria-label="${index + 1}위 ${escapeHtml(book.title)} 책 내용 보기">
+                            <span class="bestseller-rank">${index + 1}</span>
+                            ${ownedBadge}
+                            <img src="${escapeHtml(cover)}" alt="${escapeHtml(book.title)} 표지" loading="lazy">
+                            <strong>${escapeHtml(book.title)}</strong>
+                            <span>${escapeHtml(book.author)}</span>
+                        </button>
+                        <button class="game-btn primary bestseller-select-btn recommendation-select-btn" type="button" data-recommendation-list="${listName}" data-recommendation-index="${index}" onclick="toggleRecommendationBook('${listName}', ${index})">선택하기</button>
+                    </div>
+                `;
+            }).join('');
+            track.scrollLeft = 0;
+            updateBestsellerSelectionButtons();
+        }
+
         async function loadBestsellers() {
             const track = document.getElementById("bestsellerTrack");
             try {
@@ -323,41 +379,62 @@
                 if(!response.ok || data.error) throw new Error(data.error || "불러오기 실패");
                 bestsellerBooks = data.books || [];
                 if(!bestsellerBooks.length) throw new Error("목록 없음");
-
-                track.innerHTML = bestsellerBooks.map((book, index) => {
-                    const cover = book.cover || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='210'><rect width='150' height='210' fill='%23e6eef9'/></svg>";
-                    const ownedBadge = book.isDuplicate
-                        ? '<span class="bestseller-owned">도서관에 있어요</span>'
-                        : '';
-                    return `
-                        <div class="bestseller-card">
-                            <button class="bestseller-summary-button" type="button" onclick="openBestsellerSummary(${index})" aria-label="${index + 1}위 ${escapeHtml(book.title)} 책 내용 보기">
-                                <span class="bestseller-rank">${index + 1}</span>
-                                ${ownedBadge}
-                                <img src="${escapeHtml(cover)}" alt="${escapeHtml(book.title)} 표지" loading="lazy">
-                                <strong>${escapeHtml(book.title)}</strong>
-                                <span>${escapeHtml(book.author)}</span>
-                            </button>
-                            <button class="game-btn primary bestseller-select-btn" type="button" data-bestseller-index="${index}" onclick="toggleBestseller(${index})">선택하기</button>
-                        </div>
-                    `;
-                }).join('');
-                updateBestsellerSelectionButtons();
+                renderRecommendationTrack("bestsellerTrack", bestsellerBooks, "bestseller");
                 startBestsellerMotion();
             } catch(error) {
                 track.innerHTML = '<div class="helper-card">지금은 인기 어린이 책을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</div>';
             }
         }
 
+        async function loadGradePopularBooks(grade) {
+            const requestId = ++gradePopularRequestId;
+            const track = document.getElementById("gradePopularTrack");
+            const heading = document.getElementById("gradePopularHeading");
+            const caption = document.getElementById("gradePopularCaption");
+            const gradeBand = gradeBandForGrade(grade);
+
+            gradePopularBooks = [];
+            if(!gradeBand) {
+                heading.textContent = "🎒 학년별 인기책";
+                caption.textContent = "학년을 선택하면 맞춤 인기책이 나타나요.";
+                track.innerHTML = '<div class="helper-card">위에서 학년을 선택해 주세요.</div>';
+                return;
+            }
+
+            heading.textContent = `🎒 ${gradeBand} 인기책`;
+            caption.textContent = `${grade}학년에게 맞는 알라딘 인기 순위`;
+            track.innerHTML = `<div class="helper-card">${gradeBand} 인기책을 불러오는 중입니다...</div>`;
+
+            if(gradePopularClientCache[gradeBand]) {
+                gradePopularBooks = gradePopularClientCache[gradeBand];
+                renderRecommendationTrack("gradePopularTrack", gradePopularBooks, "grade");
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/popular-books?grade=${encodeURIComponent(grade)}`);
+                const data = await response.json();
+                if(requestId !== gradePopularRequestId) return;
+                if(!response.ok || data.error) throw new Error(data.error || "불러오기 실패");
+                gradePopularBooks = data.books || [];
+                if(!gradePopularBooks.length) throw new Error("목록 없음");
+                gradePopularClientCache[data.gradeBand || gradeBand] = gradePopularBooks;
+                renderRecommendationTrack("gradePopularTrack", gradePopularBooks, "grade");
+            } catch(error) {
+                if(requestId !== gradePopularRequestId) return;
+                track.innerHTML = `<div class="helper-card">${gradeBand} 인기책을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</div>`;
+            }
+        }
+
         function updateBestsellerSelectionButtons() {
-            document.querySelectorAll(".bestseller-select-btn").forEach(button => {
-                const index = Number(button.dataset.bestsellerIndex);
-                const book = bestsellerBooks[index];
+            document.querySelectorAll(".recommendation-select-btn").forEach(button => {
+                const index = Number(button.dataset.recommendationIndex);
+                const book = booksForRecommendationList(button.dataset.recommendationList)[index];
                 if(!book) return;
                 const picked = selectedBooks.some(
                     selected => selected.isbn === book.isbn && selected.title === book.title
                 );
-                button.className = "game-btn bestseller-select-btn";
+                button.className = "game-btn bestseller-select-btn recommendation-select-btn";
                 button.classList.toggle("active", picked);
                 button.classList.toggle("primary", !picked && !book.isDuplicate);
                 button.classList.toggle("duplicate-choice", !picked && book.isDuplicate);
@@ -375,13 +452,16 @@
             bestsellerLastTime = 0;
 
             const animate = (time) => {
-                const track = document.getElementById("bestsellerTrack");
-                if(bestsellerLastTime && !bestsellerPaused && track.scrollWidth > track.clientWidth) {
+                if(bestsellerLastTime) {
                     const elapsed = Math.min(time - bestsellerLastTime, 50);
-                    track.scrollLeft += elapsed * 0.022;
-                    if(track.scrollLeft + track.clientWidth >= track.scrollWidth - 2) {
-                        track.scrollLeft = 0;
-                    }
+                    document.querySelectorAll(".bestseller-track").forEach(track => {
+                        if(!pausedRecommendationTracks.has(track) && track.scrollWidth > track.clientWidth) {
+                            track.scrollLeft += elapsed * 0.022;
+                            if(track.scrollLeft + track.clientWidth >= track.scrollWidth - 2) {
+                                track.scrollLeft = 0;
+                            }
+                        }
+                    });
                 }
                 bestsellerLastTime = time;
                 bestsellerAnimationId = requestAnimationFrame(animate);
@@ -389,11 +469,14 @@
             bestsellerAnimationId = requestAnimationFrame(animate);
         }
 
-        const bestsellerTrack = document.getElementById("bestsellerTrack");
-        bestsellerTrack.addEventListener("mouseenter", () => bestsellerPaused = true);
-        bestsellerTrack.addEventListener("mouseleave", () => bestsellerPaused = false);
-        bestsellerTrack.addEventListener("focusin", () => bestsellerPaused = true);
-        bestsellerTrack.addEventListener("focusout", () => bestsellerPaused = false);
+        document.querySelectorAll(".bestseller-track").forEach(track => {
+            track.addEventListener("mouseenter", () => pausedRecommendationTracks.add(track));
+            track.addEventListener("mouseleave", () => pausedRecommendationTracks.delete(track));
+            track.addEventListener("focusin", () => pausedRecommendationTracks.add(track));
+            track.addEventListener("focusout", () => pausedRecommendationTracks.delete(track));
+            track.addEventListener("touchstart", () => pausedRecommendationTracks.add(track), {passive: true});
+            track.addEventListener("touchend", () => pausedRecommendationTracks.delete(track), {passive: true});
+        });
 
         async function searchBooks() {
             if(!ensureInfo()) return;
@@ -502,9 +585,9 @@
             }
         }
 
-        function toggleBestseller(i) {
+        function toggleRecommendationBook(listName, i) {
             if(!ensureInfo()) return;
-            const book = bestsellerBooks[i];
+            const book = booksForRecommendationList(listName)[i];
             if(!book) return;
             const selectedIndex = selectedBooks.findIndex(
                 selected => selected.isbn === book.isbn && selected.title === book.title
@@ -606,7 +689,7 @@
             document.getElementById("searchResults").innerHTML = '<div class="helper-card" style="grid-column: 1/-1;">보고 싶은 책을 검색해 보세요!</div>';
             document.querySelectorAll(".game-btn").forEach(b => {b.classList.remove('active', 'primary')});
             document.querySelector(".mode-actions .game-btn").classList.add('active', 'primary');
-            renderClassBtns(); renderNumBtns(); updateSummary(); freshBasket();
+            renderClassBtns(); renderNumBtns(); updateSummary(); freshBasket(); loadGradePopularBooks("");
         }
 
         function escapeHtml(val) {
@@ -624,8 +707,8 @@
             showBookSummary(currentBooks[index]);
         }
 
-        function openBestsellerSummary(index) {
-            showBookSummary(bestsellerBooks[index]);
+        function openRecommendationSummary(listName, index) {
+            showBookSummary(booksForRecommendationList(listName)[index]);
         }
 
         function showBookSummary(book) {

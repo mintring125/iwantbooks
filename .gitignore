@@ -7,4 +7,6 @@ instance/
 .pytest_cache/
 .venv/
 .omc/
+.playwright-cli/
+output/playwright/
 *.xlsx

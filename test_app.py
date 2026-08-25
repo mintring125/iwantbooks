@@ -47,6 +47,10 @@ class SearchBooksTest(unittest.TestCase):
         app_module.bestseller_cache["items"] = []
         app_module.bestseller_cache["expires_at"] = 0.0
         app_module.bestseller_cache["retry_after"] = 0.0
+        for cache in app_module.grade_popular_caches.values():
+            cache["items"] = []
+            cache["expires_at"] = 0.0
+            cache["retry_after"] = 0.0
         app_module.invalidate_catalog_cache()
         app_module.aladin_backoff["until"] = 0.0
 
@@ -160,6 +164,56 @@ class SearchBooksTest(unittest.TestCase):
         self.assertEqual(params["QueryType"], "Bestseller")
         self.assertEqual(params["CategoryId"], 1108)
         self.assertEqual(params["MaxResults"], 50)
+
+    def test_grade_popular_books_use_matching_aladin_category(self):
+        with (
+            patch.object(
+                app_module,
+                "load_persisted_grade_popular",
+                return_value=([], None),
+            ),
+            patch.object(app_module, "save_persisted_grade_popular"),
+            patch.object(
+                app_module.requests,
+                "get",
+                return_value=DummyBestsellerResponse(),
+            ) as mock_get,
+        ):
+            first_response = self.client.get("/api/popular-books?grade=1")
+            second_response = self.client.get("/api/popular-books?grade=2")
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(first_response.get_json()["gradeBand"], "1·2학년")
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(mock_get.call_count, 1)
+        params = mock_get.call_args.kwargs["params"]
+        self.assertEqual(params["QueryType"], "Bestseller")
+        self.assertEqual(params["CategoryId"], 48803)
+        self.assertEqual(params["MaxResults"], 30)
+
+    def test_grade_popular_category_mapping_covers_all_school_grades(self):
+        self.assertEqual(
+            {
+                grade: app_module.GRADE_POPULAR_GROUPS[group_key]["category_id"]
+                for grade, group_key in app_module.GRADE_TO_POPULAR_GROUP.items()
+            },
+            {
+                "1": 48803,
+                "2": 48803,
+                "3": 48804,
+                "4": 48804,
+                "5": 48805,
+                "6": 48805,
+            },
+        )
+
+    def test_grade_popular_books_reject_invalid_grade(self):
+        with patch.object(app_module.requests, "get") as mock_get:
+            response = self.client.get("/api/popular-books?grade=7")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["books"], [])
+        mock_get.assert_not_called()
 
     def test_catalog_rows_support_second_row_dls_header(self):
         rows = [

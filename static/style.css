@@ -202,6 +202,36 @@ button, input, select {
     font-weight: 700;
 }
 
+.recommendation-group + .recommendation-group {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 3px dashed rgba(51, 51, 51, 0.25);
+}
+
+.recommendation-title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.recommendation-title-row h3 {
+    margin: 0;
+    font-size: 1.15rem;
+}
+
+.recommendation-title-row span {
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    font-weight: 800;
+    text-align: right;
+}
+
+.grade-popular-group {
+    min-height: 180px;
+}
+
 .bestseller-track {
     display: flex;
     gap: 16px;
@@ -675,6 +705,16 @@ button, input, select {
 }
 
 @media (max-width: 768px) {
+    .recommendation-title-row {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .recommendation-title-row span {
+        text-align: left;
+    }
+
     .bestseller-card {
         flex-basis: 135px;
     }

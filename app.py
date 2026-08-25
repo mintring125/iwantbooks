@@ -17,6 +17,7 @@ from flask import Flask, jsonify, render_template, request, send_file, session
 from flask_sqlalchemy import SQLAlchemy
 from openpyxl.styles import Alignment, Font, PatternFill
 from sqlalchemy import UniqueConstraint
+from sqlalchemy.exc import IntegrityError
 
 
 def build_database_url():
@@ -47,6 +48,16 @@ ALADIN_LIST_URL = os.environ.get(
     "https://aladin.co.kr/ttb/api/ItemList.aspx",
 ).strip()
 ALADIN_CHILDREN_CATEGORY_ID = 1108
+GRADE_POPULAR_GROUPS = {
+    "1-2": {"grades": ("1", "2"), "label": "1·2학년", "category_id": 48803},
+    "3-4": {"grades": ("3", "4"), "label": "3·4학년", "category_id": 48804},
+    "5-6": {"grades": ("5", "6"), "label": "5·6학년", "category_id": 48805},
+}
+GRADE_TO_POPULAR_GROUP = {
+    grade: group_key
+    for group_key, config in GRADE_POPULAR_GROUPS.items()
+    for grade in config["grades"]
+}
 BESTSELLER_CACHE_SECONDS = 6 * 60 * 60
 BESTSELLER_RETRY_SECONDS = 10 * 60
 CATALOG_CACHE_SECONDS = int(os.environ.get("CATALOG_CACHE_SECONDS", "300"))
@@ -56,6 +67,13 @@ ALADIN_MAX_CONCURRENT = int(os.environ.get("ALADIN_MAX_CONCURRENT", "2"))
 ALADIN_BACKOFF_SECONDS = int(os.environ.get("ALADIN_BACKOFF_SECONDS", "600"))
 bestseller_cache = {"expires_at": 0.0, "retry_after": 0.0, "items": []}
 bestseller_refresh_lock = threading.Lock()
+grade_popular_caches = {
+    group_key: {"expires_at": 0.0, "retry_after": 0.0, "items": []}
+    for group_key in GRADE_POPULAR_GROUPS
+}
+grade_popular_refresh_locks = {
+    group_key: threading.Lock() for group_key in GRADE_POPULAR_GROUPS
+}
 catalog_cache = {
     "expires_at": 0.0,
     "titles": frozenset(),
@@ -441,9 +459,9 @@ def serialize_aladin_books(items):
     return books
 
 
-def load_persisted_bestsellers():
+def load_persisted_api_items(cache_key):
     ensure_database_ready()
-    cache_row = db.session.get(ApiCache, "children_bestsellers")
+    cache_row = db.session.get(ApiCache, cache_key)
     if not cache_row:
         return [], None
     try:
@@ -453,14 +471,102 @@ def load_persisted_bestsellers():
     return items if isinstance(items, list) else [], cache_row.updated_at
 
 
-def save_persisted_bestsellers(items):
-    cache_row = db.session.get(ApiCache, "children_bestsellers")
+def save_persisted_api_items(cache_key, items):
+    cache_row = db.session.get(ApiCache, cache_key)
     if cache_row is None:
-        cache_row = ApiCache(key="children_bestsellers", value_json="[]")
+        cache_row = ApiCache(key=cache_key, value_json="[]")
         db.session.add(cache_row)
     cache_row.value_json = json.dumps(items, ensure_ascii=False)
     cache_row.updated_at = datetime.now()
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        cache_row = db.session.get(ApiCache, cache_key)
+        if cache_row is None:
+            raise
+        cache_row.value_json = json.dumps(items, ensure_ascii=False)
+        cache_row.updated_at = datetime.now()
+        db.session.commit()
+
+
+def load_persisted_bestsellers():
+    return load_persisted_api_items("children_bestsellers")
+
+
+def save_persisted_bestsellers(items):
+    save_persisted_api_items("children_bestsellers", items)
+
+
+def load_persisted_grade_popular(group_key):
+    return load_persisted_api_items(f"grade_popular_{group_key}")
+
+
+def save_persisted_grade_popular(group_key, items):
+    save_persisted_api_items(f"grade_popular_{group_key}", items)
+
+
+def load_cached_aladin_list(
+    memory_cache,
+    refresh_lock,
+    load_persisted,
+    save_persisted,
+    category_id,
+    max_results,
+):
+    now = time.monotonic()
+    items = memory_cache["items"]
+    persisted_items, persisted_at = load_persisted()
+    persisted_is_fresh = bool(
+        persisted_items
+        and persisted_at
+        and (datetime.now() - persisted_at).total_seconds()
+        < BESTSELLER_CACHE_SECONDS
+    )
+
+    if not items and persisted_is_fresh:
+        items = persisted_items
+        memory_cache["items"] = items
+        memory_cache["expires_at"] = now + BESTSELLER_CACHE_SECONDS
+
+    should_refresh = (
+        (not items or now >= memory_cache["expires_at"])
+        and now >= memory_cache["retry_after"]
+    )
+    if should_refresh:
+        with refresh_lock:
+            now = time.monotonic()
+            items = memory_cache["items"] or items
+            should_refresh = (
+                (not items or now >= memory_cache["expires_at"])
+                and now >= memory_cache["retry_after"]
+            )
+            if should_refresh:
+                try:
+                    items = request_aladin_items(
+                        ALADIN_LIST_URL,
+                        {
+                            "ttbkey": ALADIN_API_KEY,
+                            "QueryType": "Bestseller",
+                            "MaxResults": max_results,
+                            "start": 1,
+                            "SearchTarget": "Book",
+                            "CategoryId": category_id,
+                            "output": "js",
+                            "Version": "20131101",
+                            "Cover": "Big",
+                        },
+                    )
+                    save_persisted(items)
+                    memory_cache["items"] = items
+                    memory_cache["expires_at"] = now + BESTSELLER_CACHE_SECONDS
+                    memory_cache["retry_after"] = 0.0
+                except (requests.RequestException, ValueError):
+                    memory_cache["retry_after"] = now + BESTSELLER_RETRY_SECONDS
+                    if not items:
+                        items = persisted_items
+
+    return items
 
 
 def cell_text(value):
@@ -714,57 +820,14 @@ def children_bestsellers():
     if not ALADIN_API_KEY:
         return jsonify({"books": [], "error": "알라딘 API 키가 설정되어 있지 않습니다."})
 
-    now = time.monotonic()
-    items = bestseller_cache["items"]
-    persisted_items, persisted_at = load_persisted_bestsellers()
-    persisted_is_fresh = bool(
-        persisted_items
-        and persisted_at
-        and (datetime.now() - persisted_at).total_seconds()
-        < BESTSELLER_CACHE_SECONDS
+    items = load_cached_aladin_list(
+        bestseller_cache,
+        bestseller_refresh_lock,
+        load_persisted_bestsellers,
+        save_persisted_bestsellers,
+        ALADIN_CHILDREN_CATEGORY_ID,
+        50,
     )
-
-    if not items and persisted_is_fresh:
-        items = persisted_items
-        bestseller_cache["items"] = items
-        bestseller_cache["expires_at"] = now + BESTSELLER_CACHE_SECONDS
-
-    should_refresh = (
-        (not items or now >= bestseller_cache["expires_at"])
-        and now >= bestseller_cache["retry_after"]
-    )
-    if should_refresh:
-        with bestseller_refresh_lock:
-            now = time.monotonic()
-            items = bestseller_cache["items"] or items
-            should_refresh = (
-                (not items or now >= bestseller_cache["expires_at"])
-                and now >= bestseller_cache["retry_after"]
-            )
-            if should_refresh:
-                try:
-                    items = request_aladin_items(
-                        ALADIN_LIST_URL,
-                        {
-                            "ttbkey": ALADIN_API_KEY,
-                            "QueryType": "Bestseller",
-                            "MaxResults": 50,
-                            "start": 1,
-                            "SearchTarget": "Book",
-                            "CategoryId": ALADIN_CHILDREN_CATEGORY_ID,
-                            "output": "js",
-                            "Version": "20131101",
-                            "Cover": "Big",
-                        },
-                    )
-                    save_persisted_bestsellers(items)
-                    bestseller_cache["items"] = items
-                    bestseller_cache["expires_at"] = now + BESTSELLER_CACHE_SECONDS
-                    bestseller_cache["retry_after"] = 0.0
-                except (requests.RequestException, ValueError):
-                    bestseller_cache["retry_after"] = now + BESTSELLER_RETRY_SECONDS
-                    if not items:
-                        items = persisted_items
 
     if not items:
         return (
@@ -777,7 +840,49 @@ def children_bestsellers():
             502,
         )
 
-    return jsonify({"books": serialize_aladin_books(items)})
+    single_books = [item for item in items if not is_set_product(item)]
+    return jsonify({"books": serialize_aladin_books(single_books)})
+
+
+@app.route("/api/popular-books")
+def grade_popular_books():
+    grade = request.args.get("grade", "").strip()
+    group_key = GRADE_TO_POPULAR_GROUP.get(grade)
+    if not group_key:
+        return jsonify({"books": [], "error": "학년을 다시 선택해 주세요."}), 400
+
+    if not ALADIN_API_KEY:
+        return jsonify({"books": [], "error": "알라딘 API 키가 설정되어 있지 않습니다."})
+
+    group = GRADE_POPULAR_GROUPS[group_key]
+    items = load_cached_aladin_list(
+        grade_popular_caches[group_key],
+        grade_popular_refresh_locks[group_key],
+        lambda: load_persisted_grade_popular(group_key),
+        lambda fresh_items: save_persisted_grade_popular(group_key, fresh_items),
+        group["category_id"],
+        30,
+    )
+
+    if not items:
+        return (
+            jsonify(
+                {
+                    "books": [],
+                    "gradeBand": group["label"],
+                    "error": f"{group['label']} 인기책을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+                }
+            ),
+            502,
+        )
+
+    single_books = [item for item in items if not is_set_product(item)]
+    return jsonify(
+        {
+            "books": serialize_aladin_books(single_books),
+            "gradeBand": group["label"],
+        }
+    )
 
 
 @app.route("/api/submit", methods=["POST"])
