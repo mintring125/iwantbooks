@@ -698,7 +698,6 @@ button, input, select {
         flex-direction: column;
     }
 
-    .mode-actions,
     .admin-catalog-actions,
     .admin-summary-actions,
     .admin-toolbar {
@@ -712,11 +711,24 @@ button, input, select {
 
     .filter-group,
     .filter-group select,
-    .mode-actions .game-btn,
     .admin-catalog-actions .game-btn,
     .admin-summary-actions .game-btn {
         width: 100%;
         max-width: 100%;
+    }
+
+    .mode-actions {
+        width: 100%;
+        flex-direction: row;
+        align-items: stretch;
+    }
+
+    .mode-actions .game-btn {
+        flex: 1;
+        min-width: 0;
+        width: auto;
+        padding: 10px 8px;
+        white-space: nowrap;
     }
 
     .search-row .game-btn,
