@@ -54,7 +54,7 @@ class SearchBooksTest(unittest.TestCase):
         self.assertEqual(response.get_json(), {"books": []})
         self.assertEqual(
             mock_get.call_args.args[0],
-            "https://aladin.co.kr/ttb/api/ItemSearch.aspx",
+            "https://www.aladin.co.kr/ttb/api/ItemSearch.aspx",
         )
 
     def test_aladin_search_hides_upstream_exception_details(self):

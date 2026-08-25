@@ -12,7 +12,7 @@
 - `SECRET_KEY`: 임의의 긴 문자열
 - `ADMIN_PASSWORD`: `2026`
 - `ALADIN_API_KEY`: 알라딘 TTB Key
-- `ALADIN_SEARCH_URL`: `https://aladin.co.kr/ttb/api/ItemSearch.aspx`
+- `ALADIN_SEARCH_URL`: `https://www.aladin.co.kr/ttb/api/ItemSearch.aspx`
 - `ALADIN_LIST_URL`: `https://www.aladin.co.kr/ttb/api/ItemList.aspx`
 
 ## 4. 실행 설정

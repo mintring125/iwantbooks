@@ -37,7 +37,7 @@ db_initialized = False
 ALADIN_API_KEY = os.environ.get("ALADIN_API_KEY", "").strip()
 ALADIN_SEARCH_URL = os.environ.get(
     "ALADIN_SEARCH_URL",
-    "https://aladin.co.kr/ttb/api/ItemSearch.aspx",
+    "https://www.aladin.co.kr/ttb/api/ItemSearch.aspx",
 ).strip()
 ALADIN_LIST_URL = os.environ.get(
     "ALADIN_LIST_URL",
