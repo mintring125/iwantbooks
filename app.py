@@ -41,7 +41,7 @@ ALADIN_SEARCH_URL = os.environ.get(
 ).strip()
 ALADIN_LIST_URL = os.environ.get(
     "ALADIN_LIST_URL",
-    "https://aladin.co.kr/ttb/api/ItemList.aspx",
+    "https://www.aladin.co.kr/ttb/api/ItemList.aspx",
 ).strip()
 ALADIN_CHILDREN_CATEGORY_ID = 1108
 BESTSELLER_CACHE_SECONDS = 30 * 60

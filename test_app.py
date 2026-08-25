@@ -62,7 +62,7 @@ class SearchBooksTest(unittest.TestCase):
         self.assertEqual(response.get_json(), {"books": []})
         self.assertEqual(
             mock_get.call_args.args[0],
-            "https://aladin.co.kr/ttb/api/ItemList.aspx",
+            "https://www.aladin.co.kr/ttb/api/ItemList.aspx",
         )
         params = mock_get.call_args.kwargs["params"]
         self.assertEqual(params["QueryType"], "Bestseller")

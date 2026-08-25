@@ -13,7 +13,7 @@
 - `ADMIN_PASSWORD`: `2026`
 - `ALADIN_API_KEY`: 알라딘 TTB Key
 - `ALADIN_SEARCH_URL`: `https://aladin.co.kr/ttb/api/ItemSearch.aspx`
-- `ALADIN_LIST_URL`: `https://aladin.co.kr/ttb/api/ItemList.aspx`
+- `ALADIN_LIST_URL`: `https://www.aladin.co.kr/ttb/api/ItemList.aspx`
 
 ## 4. 실행 설정
 - 이 저장소에는 이미 `requirements.txt`, `Procfile`, `railway.json`이 들어 있습니다.
