@@ -228,10 +228,18 @@ def is_catalog_duplicate(book_title, book_isbn, catalog_titles, catalog_isbns):
         return False
 
     for normalized_catalog in catalog_titles:
-        if normalized_catalog and (
-            normalized_query == normalized_catalog
-            or normalized_query in normalized_catalog
-            or normalized_catalog in normalized_query
+        if not normalized_catalog:
+            continue
+        if normalized_query == normalized_catalog:
+            return True
+        shorter, longer = sorted(
+            (normalized_query, normalized_catalog),
+            key=len,
+        )
+        if (
+            len(shorter) >= 6
+            and shorter in longer
+            and len(shorter) / len(longer) >= 0.65
         ):
             return True
     return False

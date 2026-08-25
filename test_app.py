@@ -85,6 +85,26 @@ class SearchBooksTest(unittest.TestCase):
             ],
         )
 
+    def test_title_match_avoids_unrelated_partial_titles(self):
+        titles = {app_module.normalize_title("아낌없이 주는 나무")}
+
+        self.assertTrue(
+            app_module.is_catalog_duplicate(
+                "아낌없이 주는 나무 (양장)",
+                "",
+                titles,
+                set(),
+            )
+        )
+        self.assertFalse(
+            app_module.is_catalog_duplicate(
+                "아낌없이 주는 나무는 없다 - 도시의 나무와 함께 살아가는 법",
+                "",
+                titles,
+                set(),
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
