@@ -321,13 +321,13 @@
                         ? '<span class="bestseller-owned">도서관에 있어요</span>'
                         : '';
                     return `
-                        <a class="bestseller-card" href="${escapeHtml(book.link || 'https://www.aladin.co.kr/')}" target="_blank" rel="noopener noreferrer" aria-label="${index + 1}위 ${escapeHtml(book.title)} 알라딘에서 보기">
+                        <button class="bestseller-card" type="button" onclick="openBestsellerSummary(${index})" aria-label="${index + 1}위 ${escapeHtml(book.title)} 책 내용 보기">
                             <span class="bestseller-rank">${index + 1}</span>
                             ${ownedBadge}
                             <img src="${escapeHtml(cover)}" alt="${escapeHtml(book.title)} 표지" loading="lazy">
                             <strong>${escapeHtml(book.title)}</strong>
                             <span>${escapeHtml(book.author)}</span>
-                        </a>
+                        </button>
                     `;
                 }).join('');
                 startBestsellerMotion();
@@ -541,7 +541,14 @@
         }
 
         function openSummaryModal(index) {
-            const book = currentBooks[index];
+            showBookSummary(currentBooks[index]);
+        }
+
+        function openBestsellerSummary(index) {
+            showBookSummary(bestsellerBooks[index]);
+        }
+
+        function showBookSummary(book) {
             if (!book) return;
 
             const meta = [book.author, book.publisher].filter(Boolean).join(" · ");

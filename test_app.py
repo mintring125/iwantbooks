@@ -20,6 +20,17 @@ class DummyBestsellerResponse(DummySearchResponse):
         return {"item": [{"title": "긴긴밤", "author": "루리"}]}
 
 
+class DummyMixedSearchResponse(DummySearchResponse):
+    def json(self):
+        return {
+            "item": [
+                {"title": "마법천자문 세트 - 전 5권"},
+                {"title": "흔한남매 1~10 전권"},
+                {"title": "긴긴밤", "author": "루리"},
+            ]
+        }
+
+
 class SearchBooksTest(unittest.TestCase):
     def setUp(self):
         app_module.app.config["TESTING"] = True
@@ -61,12 +72,33 @@ class SearchBooksTest(unittest.TestCase):
         self.assertNotIn("HTTPConnectionPool", data["error"])
         self.assertNotIn("ttbkey", data["error"])
 
-    def test_children_bestsellers_use_children_category_and_fifty_results(self):
+    def test_aladin_search_excludes_set_products(self):
         with patch.object(
             app_module.requests,
             "get",
-            return_value=DummyBestsellerResponse(),
-        ) as mock_get:
+            return_value=DummyMixedSearchResponse(),
+        ):
+            response = self.client.get("/api/search?q=어린이책")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [book["title"] for book in response.get_json()["books"]],
+            ["긴긴밤"],
+        )
+
+    def test_children_bestsellers_use_children_category_and_fifty_results(self):
+        with (
+            patch.object(
+                app_module,
+                "load_persisted_bestsellers",
+                return_value=([], None),
+            ),
+            patch.object(
+                app_module.requests,
+                "get",
+                return_value=DummyBestsellerResponse(),
+            ) as mock_get,
+        ):
             response = self.client.get("/api/bestsellers")
 
         self.assertEqual(response.status_code, 200)

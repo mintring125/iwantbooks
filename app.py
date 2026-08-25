@@ -285,6 +285,16 @@ def request_aladin_items(url, params):
     return data.get("item", [])
 
 
+def is_set_product(item):
+    title = str(item.get("title", ""))
+    return bool(
+        "세트" in title
+        or "전권" in title
+        or re.search(r"(?:전|총)\s*\d+\s*권", title)
+        or re.search(r"(?:^|[\s\[(\-])set(?:$|[\s\])\-:])", title, re.IGNORECASE)
+    )
+
+
 def serialize_aladin_books(items):
     catalog_titles, catalog_isbns = load_catalog_index()
     books = []
@@ -568,7 +578,8 @@ def search_books():
             502,
         )
 
-    return jsonify({"books": serialize_aladin_books(items)})
+    single_books = [item for item in items if not is_set_product(item)]
+    return jsonify({"books": serialize_aladin_books(single_books)})
 
 
 @app.route("/api/bestsellers")
