@@ -12,6 +12,7 @@
 <body>
     <div class="page-shell">
         <header class="hero panel">
+            <canvas id="headerEffectCanvas" class="header-effect-canvas" aria-hidden="true"></canvas>
             <h1 class="site-brand">
                 <img src="/static/hwangji-book-request-header.png" width="640" height="251" alt="황지중앙초 도서신청">
             </h1>
@@ -103,13 +104,13 @@
                     <h2>2️⃣ 책 검색하고 고르기</h2>
                 </div>
                 <div class="search-row">
-                    <input type="text" id="searchInput" class="search-input" placeholder="책 이름이나 작가를 적어보세요">
+                    <input type="text" id="searchInput" class="search-input" placeholder="책 이름이나 작가를 적어보세요" aria-label="책 이름이나 작가 검색" autocomplete="off">
                     <button class="game-btn primary" id="searchBtn" type="button" onclick="searchBooks()">🔍 검색</button>
                 </div>
-                <div id="loadingSpinner" class="loading-spinner hidden">
+                <div id="loadingSpinner" class="loading-spinner hidden" role="status" aria-live="polite">
                     책을 찾는 중입니다...
                 </div>
-                <div id="searchResults" class="book-grid">
+                <div id="searchResults" class="book-grid" aria-live="polite">
                     <div class="helper-card" style="grid-column: 1/-1;">보고 싶은 책을 검색해 보세요!</div>
                 </div>
             </section>
@@ -200,7 +201,7 @@
     </div>
 
     <!-- 모달: 안내 메시지 -->
-    <div id="summaryModal" class="modal hidden" onclick="closeSummaryModal()">
+    <div id="summaryModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="summaryTitle" onclick="closeSummaryModal()">
         <div class="modal-content summary-modal-content" onclick="event.stopPropagation()">
             <h2 id="summaryTitle">책 줄거리</h2>
             <p id="summaryMeta" class="summary-meta"></p>
@@ -211,7 +212,7 @@
         </div>
     </div>
 
-    <div id="alertModal" class="modal hidden">
+    <div id="alertModal" class="modal hidden" role="alertdialog" aria-modal="true" aria-hidden="true" aria-labelledby="alertTitle">
         <div class="modal-content">
             <h2 id="alertTitle">안내</h2>
             <p id="alertMessage"></p>
@@ -221,7 +222,7 @@
         </div>
     </div>
 
-    <div id="duplicateModal" class="modal hidden" role="alertdialog" aria-modal="true" aria-labelledby="duplicateTitle" onclick="closeDuplicateWarning()">
+    <div id="duplicateModal" class="modal hidden" role="alertdialog" aria-modal="true" aria-hidden="true" aria-labelledby="duplicateTitle" onclick="closeDuplicateWarning()">
         <div class="modal-content" onclick="event.stopPropagation()">
             <h2 id="duplicateTitle">⚠️ 도서관에 있는 책이에요</h2>
             <p id="duplicateMessage"></p>
@@ -249,6 +250,174 @@
         let bestsellerLastTime = 0;
         const pausedRecommendationTracks = new WeakSet();
         let pendingDuplicateBook = null;
+        const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+        const modalCloseTimers = new WeakMap();
+        const modalPreviousFocus = new WeakMap();
+
+        function replayAnimation(element, className) {
+            if(!element || prefersReducedMotion.matches) return;
+            element.classList.remove(className);
+            void element.offsetWidth;
+            element.classList.add(className);
+            element.addEventListener("animationend", () => element.classList.remove(className), {once: true});
+        }
+
+        function openAnimatedModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if(!modal) return;
+            const closeTimer = modalCloseTimers.get(modal);
+            if(closeTimer) clearTimeout(closeTimer);
+            modalPreviousFocus.set(modal, document.activeElement);
+            modal.classList.remove("hidden", "is-closing");
+            modal.setAttribute("aria-hidden", "false");
+            requestAnimationFrame(() => {
+                if(modal.classList.contains("is-closing") || modal.classList.contains("hidden")) return;
+                modal.classList.add("is-open");
+                const focusTarget = modal.querySelector(".modal-actions .primary, .modal-actions button");
+                if(focusTarget) focusTarget.focus({preventScroll: true});
+            });
+        }
+
+        function closeAnimatedModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if(!modal || modal.classList.contains("hidden")) return;
+            const closeTimer = modalCloseTimers.get(modal);
+            if(closeTimer) clearTimeout(closeTimer);
+            modal.classList.remove("is-open");
+            modal.classList.add("is-closing");
+            const previousFocus = modalPreviousFocus.get(modal);
+            if(previousFocus && document.contains(previousFocus)) previousFocus.focus({preventScroll: true});
+
+            const finishClose = () => {
+                modal.classList.add("hidden");
+                modal.classList.remove("is-closing");
+                modal.setAttribute("aria-hidden", "true");
+                modalCloseTimers.delete(modal);
+            };
+            if(prefersReducedMotion.matches) {
+                finishClose();
+            } else {
+                modalCloseTimers.set(modal, setTimeout(finishClose, 190));
+            }
+        }
+
+        function startSearchPlaceholderTyping() {
+            const input = document.getElementById("searchInput");
+            if(!input || prefersReducedMotion.matches) return;
+            const fullText = input.placeholder;
+            input.placeholder = "";
+            let index = 0;
+            const typeNext = () => {
+                if(input.value || document.activeElement === input) {
+                    input.placeholder = fullText;
+                    return;
+                }
+                input.placeholder = fullText.slice(0, index);
+                index += 1;
+                if(index <= fullText.length) setTimeout(typeNext, 48);
+            };
+            setTimeout(typeNext, 420);
+        }
+
+        function initHeaderCanvas() {
+            const canvas = document.getElementById("headerEffectCanvas");
+            const hero = canvas?.closest(".hero");
+            const context = canvas?.getContext("2d");
+            if(!canvas || !hero || !context) return;
+
+            const sparkles = [
+                {x:0.55, y:0.18, size:2.7, speed:0.000018, color:"#ffde00", phase:0.2},
+                {x:0.63, y:0.74, size:2.1, speed:0.000013, color:"#8de3ff", phase:1.1},
+                {x:0.72, y:0.28, size:1.8, speed:0.000016, color:"#ff9900", phase:2.3},
+                {x:0.80, y:0.64, size:2.3, speed:0.000012, color:"#ffde00", phase:3.1},
+                {x:0.89, y:0.22, size:1.7, speed:0.000015, color:"#8de3ff", phase:4.0},
+                {x:0.94, y:0.78, size:2.0, speed:0.000011, color:"#ff9900", phase:5.2},
+                {x:0.48, y:0.88, size:1.6, speed:0.000014, color:"#8de3ff", phase:2.8},
+            ];
+            let width = 0;
+            let height = 0;
+            let pixelRatio = 1;
+            let animationId = 0;
+            let lastFrame = 0;
+
+            const resizeCanvas = () => {
+                const bounds = hero.getBoundingClientRect();
+                width = Math.max(1, bounds.width);
+                height = Math.max(1, bounds.height);
+                pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+                canvas.width = Math.round(width * pixelRatio);
+                canvas.height = Math.round(height * pixelRatio);
+                context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+            };
+
+            const drawSparkle = (x, y, size, color, opacity) => {
+                context.save();
+                context.translate(x, y);
+                context.globalAlpha = opacity;
+                context.fillStyle = color;
+                context.beginPath();
+                context.moveTo(0, -size * 2);
+                context.lineTo(size * 0.55, -size * 0.55);
+                context.lineTo(size * 2, 0);
+                context.lineTo(size * 0.55, size * 0.55);
+                context.lineTo(0, size * 2);
+                context.lineTo(-size * 0.55, size * 0.55);
+                context.lineTo(-size * 2, 0);
+                context.lineTo(-size * 0.55, -size * 0.55);
+                context.closePath();
+                context.fill();
+                context.restore();
+            };
+
+            const drawFrame = (time, elapsed = 0) => {
+                context.clearRect(0, 0, width, height);
+                sparkles.forEach(sparkle => {
+                    sparkle.y -= elapsed * sparkle.speed;
+                    if(sparkle.y < 0.08) sparkle.y = 0.92;
+                    const twinkle = 0.13 + ((Math.sin(time * 0.0014 + sparkle.phase) + 1) * 0.07);
+                    drawSparkle(
+                        sparkle.x * width,
+                        sparkle.y * height,
+                        sparkle.size,
+                        sparkle.color,
+                        twinkle,
+                    );
+                });
+            };
+
+            const animate = time => {
+                if(time - lastFrame < 34) {
+                    animationId = requestAnimationFrame(animate);
+                    return;
+                }
+                const elapsed = lastFrame ? Math.min(time - lastFrame, 80) : 0;
+                lastFrame = time;
+                drawFrame(time, elapsed);
+                animationId = requestAnimationFrame(animate);
+            };
+
+            resizeCanvas();
+            if(prefersReducedMotion.matches) {
+                drawFrame(0);
+            } else {
+                animationId = requestAnimationFrame(animate);
+            }
+
+            new ResizeObserver(() => {
+                resizeCanvas();
+                if(prefersReducedMotion.matches) drawFrame(0);
+            }).observe(hero);
+
+            document.addEventListener("visibilitychange", () => {
+                if(prefersReducedMotion.matches) return;
+                if(document.hidden) {
+                    cancelAnimationFrame(animationId);
+                } else {
+                    lastFrame = 0;
+                    animationId = requestAnimationFrame(animate);
+                }
+            });
+        }
 
         document.getElementById("searchInput").addEventListener("keypress", (e) => {
             if (e.key === "Enter") searchBooks();
@@ -277,6 +446,7 @@
                 am.classList.remove('hidden');
                 btns[1].classList.add("active", "primary");
             }
+            replayAnimation(mode === 'student' ? sm : am, "view-enter");
         }
 
         // --- 학생 모드 기능 ---
@@ -375,17 +545,20 @@
             gradeView.classList.toggle("hidden", !showGrade);
             bestsellerView.setAttribute("aria-hidden", String(showGrade));
             gradeView.setAttribute("aria-hidden", String(!showGrade));
+            replayAnimation(showGrade ? gradeView : bestsellerView, "view-enter");
         }
 
         function renderRecommendationTrack(trackId, books, listName) {
             const track = document.getElementById(trackId);
             track.innerHTML = books.map((book, index) => {
                 const cover = book.cover || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='210'><rect width='150' height='210' fill='%23e6eef9'/></svg>";
+                const enterClass = index < 12 && !prefersReducedMotion.matches ? " content-enter" : "";
+                const enterStyle = enterClass ? ` style="--enter-delay:${Math.min(index, 8) * 32}ms"` : "";
                 const ownedBadge = book.isDuplicate
                     ? '<span class="bestseller-owned">도서관에 있어요</span>'
                     : '';
                 return `
-                    <div class="bestseller-card">
+                    <div class="bestseller-card${enterClass}"${enterStyle}>
                         <button class="bestseller-summary-button" type="button" onclick="openRecommendationSummary('${listName}', ${index})" aria-label="${index + 1}위 ${escapeHtml(book.title)} 책 내용 보기">
                             <span class="bestseller-rank">${index + 1}</span>
                             ${ownedBadge}
@@ -412,7 +585,7 @@
                 renderRecommendationTrack("bestsellerTrack", bestsellerBooks, "bestseller");
                 startBestsellerMotion();
             } catch(error) {
-                track.innerHTML = '<div class="helper-card">지금은 인기 어린이 책을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</div>';
+                track.innerHTML = '<div class="helper-card content-enter">지금은 인기 어린이 책을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</div>';
             }
         }
 
@@ -458,7 +631,7 @@
                 renderRecommendationTrack("gradePopularTrack", gradePopularBooks, "grade");
             } catch(error) {
                 if(requestId !== gradePopularRequestId) return;
-                track.innerHTML = `<div class="helper-card">${gradeBand} 인기책을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</div>`;
+                track.innerHTML = `<div class="helper-card content-enter">${gradeBand} 인기책을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</div>`;
             }
         }
 
@@ -519,28 +692,32 @@
             const q = document.getElementById("searchInput").value.trim();
             if(!q) { showAlert('알림', '검색어를 입력하세요.'); return; }
 
+            const results = document.getElementById("searchResults");
             document.getElementById("loadingSpinner").classList.remove("hidden");
-            document.getElementById("searchResults").innerHTML = "";
+            results.classList.add("content-refreshing");
+            results.setAttribute("aria-busy", "true");
 
             try {
                 const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
                 const data = await r.json();
                 if(data.error) {
-                    document.getElementById("searchResults").innerHTML = `<div class="helper-card">${data.error}</div>`;
+                    results.innerHTML = `<div class="helper-card content-enter">${data.error}</div>`;
                 } else {
                     currentBooks = data.books || [];
-                    drawBooks(currentBooks);
+                    drawBooks(currentBooks, true);
                 }
             } catch(e) {
-                document.getElementById("searchResults").innerHTML = '<div class="helper-card">검색 중 문제가 생겼어요.</div>';
+                results.innerHTML = '<div class="helper-card content-enter">검색 중 문제가 생겼어요.</div>';
             } finally {
                 document.getElementById("loadingSpinner").classList.add("hidden");
+                results.classList.remove("content-refreshing");
+                results.setAttribute("aria-busy", "false");
             }
         }
 
-        function drawBooks(books) {
+        function drawBooks(books, animateResults = false) {
             const cont = document.getElementById("searchResults");
-            if(!books.length) { cont.innerHTML = '<div class="helper-card">결과가 없어요 다른 검색어를 써보세요.</div>'; return; }
+            if(!books.length) { cont.innerHTML = '<div class="helper-card content-enter">결과가 없어요 다른 검색어를 써보세요.</div>'; return; }
 
             cont.innerHTML = books.map((b, i) => {
                 const picked = selectedBooks.some(s => s.isbn===b.isbn && s.title===b.title);
@@ -550,6 +727,11 @@
                 let btnText = "선택하기";
                 let btnClass = "game-btn primary";
                 let wrapperClass = "book-card";
+                let enterStyle = "";
+                if(animateResults && i < 12 && !prefersReducedMotion.matches) {
+                    wrapperClass += " content-enter";
+                    enterStyle = ` style="--enter-delay:${Math.min(i, 8) * 36}ms"`;
+                }
                 
                 if(picked) {
                     btnText = "✓ 선택됨";
@@ -568,7 +750,7 @@
                 }
 
                 return `
-                <div class="${wrapperClass}" role="button" tabindex="0" onclick="openSummaryModal(${i})" onkeydown="handleBookCardKeydown(event, ${i})">
+                <div class="${wrapperClass}"${enterStyle} role="button" tabindex="0" onclick="openSummaryModal(${i})" onkeydown="handleBookCardKeydown(event, ${i})">
                     ${dupBadge}
                     <div class="book-cover-wrap">
                         <img class="book-cover" src="${cover}">
@@ -648,12 +830,12 @@
             pendingDuplicateBook = book;
             document.getElementById("duplicateMessage").textContent =
                 `『${book.title}』은(는) 이미 우리 학교 도서관에 있습니다. 그래도 희망도서로 선택할까요?`;
-            document.getElementById("duplicateModal").classList.remove("hidden");
+            openAnimatedModal("duplicateModal");
         }
 
         function closeDuplicateWarning() {
             pendingDuplicateBook = null;
-            document.getElementById("duplicateModal").classList.add("hidden");
+            closeAnimatedModal("duplicateModal");
         }
 
         function confirmDuplicateSelection() {
@@ -672,10 +854,10 @@
             document.getElementById("selectionCount").textContent = selectedBooks.length;
             const cont = document.getElementById("selectedBooks");
             if(!selectedBooks.length) {
-                cont.innerHTML = '<div class="helper-card" style="padding:6px;">아직 고른 책이 없어요.</div>';
+                cont.innerHTML = '<div class="helper-card content-enter" style="padding:6px;">아직 고른 책이 없어요.</div>';
             } else {
                 cont.innerHTML = selectedBooks.map((b, i) => `
-                <div class="basket-item">
+                <div class="basket-item content-enter" style="--enter-delay:${i * 38}ms">
                     <div class="basket-order">${i+1}</div>
                     <div class="basket-info">
                         <strong>${escapeHtml(b.title)}</strong>
@@ -756,20 +938,20 @@
             document.getElementById("summaryTitle").textContent = book.title || "책 줄거리";
             document.getElementById("summaryMeta").textContent = meta;
             document.getElementById("summaryText").textContent = summary;
-            document.getElementById("summaryModal").classList.remove('hidden');
+            openAnimatedModal("summaryModal");
         }
 
         function closeSummaryModal() {
-            document.getElementById("summaryModal").classList.add('hidden');
+            closeAnimatedModal("summaryModal");
         }
 
         function showAlert(title, msg) {
             document.getElementById("alertTitle").textContent = title;
             document.getElementById("alertMessage").textContent = msg;
-            document.getElementById("alertModal").classList.remove('hidden');
+            openAnimatedModal("alertModal");
         }
         function closeAlertModal() {
-            document.getElementById("alertModal").classList.add('hidden');
+            closeAnimatedModal("alertModal");
         }
 
         // --- 관리자 모드 기능 ---
@@ -880,6 +1062,8 @@
             }
         }
 
+        initHeaderCanvas();
+        startSearchPlaceholderTyping();
         loadBestsellers();
     </script>
 </body>
