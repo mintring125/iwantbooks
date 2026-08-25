@@ -26,6 +26,9 @@ class DummyMixedSearchResponse(DummySearchResponse):
             "item": [
                 {"title": "마법천자문 세트 - 전 5권"},
                 {"title": "흔한남매 1~10 전권"},
+                {"title": "[하나북 세트] 긴긴밤+5번 레인"},
+                {"title": "[하나북] 나나 올리브에게+긴긴밤"},
+                {"title": "문학동네 보름달문고 베스트 5종 (긴긴밤 포함)"},
                 {"title": "마법천자문 1 - 불어라 바람 풍! (세트 낱권)"},
                 {"title": "세트로 배우는 어린이 과학", "author": "김과학"},
                 {"title": "긴긴밤", "author": "루리"},

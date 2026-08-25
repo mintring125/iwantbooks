@@ -302,12 +302,15 @@ def is_set_product(item):
     if "낱권" in title or "단권" in title:
         return False
 
+    isbn = normalize_isbn(item.get("isbn13", item.get("isbn", "")))
     return bool(
         "전권" in title
         or re.search(r"(?:전|총)\s*\d+\s*권", title)
-        or re.search(r"[\[【(]\s*세트\s*[\]】)]", title)
+        or re.search(r"[\[【(][^\]】)]*세트[^\]】)]*[\]】)]", title)
         or re.search(r"(?:^|[\s\-:：])\d+\s*권\s*세트(?:$|[\s\-:：])", title)
         or re.search(r"세트\s*[-:：]\s*(?:전|총)?\s*\d+\s*권", title)
+        or re.search(r"\d+\s*종\s*(?:\(|세트|묶음)", title)
+        or (not isbn and "+" in title)
         or re.search(
             r"(?:^|[\s\[(\-])set\s*[-:：]\s*(?:all|\d+\s*(?:books?|volumes?))",
             title,
