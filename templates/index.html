@@ -390,16 +390,16 @@
                 const picked = selectedBooks.some(s => s.isbn===b.isbn && s.title===b.title);
                 const cover = b.cover || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='160'><rect width='120' height='160' fill='%23e6eef9'/></svg>";
                 
-                let btnAttr = `onclick="pickBook(${i})"`;
+                let btnAttr = `onclick="toggleBook(${i})"`;
                 let btnText = "선택하기";
                 let btnClass = "game-btn primary";
                 let wrapperClass = "book-card";
                 
                 if(picked) {
-                    btnText = "선택됨";
-                    btnClass = "game-btn";
+                    btnText = "✓ 선택됨";
+                    btnClass = "game-btn active";
                     wrapperClass += " selected";
-                    btnAttr = "disabled";
+                    btnAttr = `onclick="toggleBook(${i})" aria-label="${escapeHtml(b.title)} 선택 취소"`;
                 }
                 
                 let dupBadge = "";
@@ -449,6 +449,20 @@
                 document.querySelector(".basket-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
             }
         }
+
+        function toggleBook(i) {
+            const book = currentBooks[i];
+            if(!book) return;
+            const selectedIndex = selectedBooks.findIndex(
+                selected => selected.isbn === book.isbn && selected.title === book.title
+            );
+            if(selectedIndex >= 0) {
+                removeBook(selectedIndex);
+            } else {
+                pickBook(i);
+            }
+        }
+
         function removeBook(i) {
             selectedBooks.splice(i, 1);
             freshBasket();
