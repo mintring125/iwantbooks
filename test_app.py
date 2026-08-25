@@ -154,6 +154,32 @@ class SearchBooksTest(unittest.TestCase):
             )
         )
 
+    def test_series_volume_matches_long_subtitle_without_matching_other_volumes(self):
+        titles = {
+            app_module.normalize_title(f"환생학교 요괴반. {volume}")
+            for volume in range(1, 5)
+        }
+
+        for volume in range(1, 5):
+            self.assertTrue(
+                app_module.is_catalog_duplicate(
+                    f"환생학교 요괴반 {volume} - 웃소의 판타지 미션 코믹북",
+                    "",
+                    titles,
+                    set(),
+                )
+            )
+
+        for volume in (5, 8, 10):
+            self.assertFalse(
+                app_module.is_catalog_duplicate(
+                    f"환생학교 요괴반 {volume} - 웃소의 판타지 미션 코믹북",
+                    "",
+                    titles,
+                    set(),
+                )
+            )
+
     def test_bestsellers_use_fresh_persisted_cache_without_api_call(self):
         cached_item = {
             "title": "긴긴밤",

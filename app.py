@@ -243,6 +243,18 @@ def is_catalog_duplicate(book_title, book_isbn, catalog_titles, catalog_isbns):
             (normalized_query, normalized_catalog),
             key=len,
         )
+        volume_suffix = re.search(r"\d+(?:권|편|기)?$", shorter)
+        if (
+            len(shorter) >= 6
+            and volume_suffix
+            and longer.startswith(shorter)
+            and not (
+                shorter[-1].isdigit()
+                and len(longer) > len(shorter)
+                and longer[len(shorter)].isdigit()
+            )
+        ):
+            return True
         if (
             len(shorter) >= 6
             and shorter in longer
