@@ -202,10 +202,40 @@ button, input, select {
     font-weight: 700;
 }
 
-.recommendation-group + .recommendation-group {
-    margin-top: 22px;
-    padding-top: 18px;
-    border-top: 3px dashed rgba(51, 51, 51, 0.25);
+.recommendation-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    border-bottom: 3px dashed rgba(51, 51, 51, 0.25);
+    padding-bottom: 14px;
+}
+
+.recommendation-tab {
+    flex: 1;
+    min-width: 0;
+    border: 3px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--btn-gray);
+    color: var(--text-main);
+    box-shadow: 0 4px 0 var(--btn-gray-shadow);
+    cursor: pointer;
+    font-weight: 800;
+    padding: 11px 10px;
+}
+
+.recommendation-tab.active {
+    background: var(--btn-primary);
+    box-shadow: 0 4px 0 var(--btn-primary-shadow);
+}
+
+.recommendation-tab:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.recommendation-tab:focus-visible {
+    outline: 4px solid var(--btn-active);
+    outline-offset: 3px;
 }
 
 .recommendation-title-row {

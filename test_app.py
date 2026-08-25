@@ -215,6 +215,59 @@ class SearchBooksTest(unittest.TestCase):
         self.assertEqual(response.get_json()["books"], [])
         mock_get.assert_not_called()
 
+    def test_recommendation_lists_use_switchable_tabs_and_hide_catalog_upload(self):
+        response = self.client.get("/")
+        html = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('id="bestsellerTab"', html)
+        self.assertIn('id="gradePopularTab"', html)
+        self.assertIn('id="gradePopularView" class="recommendation-group grade-popular-group hidden"', html)
+        self.assertIn('class="admin-catalog-box hidden"', html)
+
+    def test_recommendation_export_deduplicates_counts_and_sorts_books(self):
+        submissions = [
+            {
+                "grade": "3",
+                "classNum": "1",
+                "books": [
+                    {"title": "긴긴밤", "author": "루리", "publisher": "문학동네", "price": 11500},
+                    {"title": "긴 긴밤", "author": "루리", "publisher": "문학동네", "price": 11500},
+                    {"title": "체리새우: 비밀글입니다", "author": "황영미", "price": 11500},
+                ],
+            },
+            {
+                "grade": "3",
+                "classNum": "1",
+                "books": [
+                    {"title": "긴긴밤", "author": "루리", "publisher": "문학동네", "price": 11500},
+                    {"title": "마법천자문 1", "author": "스튜디오 시리얼", "price": 14000},
+                ],
+            },
+            {
+                "grade": "3",
+                "classNum": "1",
+                "books": [
+                    {"title": "긴긴밤", "author": "루리", "publisher": "문학동네", "price": 11500},
+                    {"title": "체리새우 비밀글입니다", "author": "황영미", "price": 11500},
+                ],
+            },
+        ]
+
+        aggregated = app_module.aggregate_recommended_books(submissions)
+        self.assertEqual(
+            [(book["title"], book["recommendationCount"]) for book in aggregated],
+            [("긴긴밤", 3), ("체리새우: 비밀글입니다", 2), ("마법천자문 1", 1)],
+        )
+
+        worksheet = app_module.build_admin_workbook(submissions).active
+        self.assertEqual(worksheet["C2"].value, "희망 인원")
+        self.assertEqual(worksheet["B3"].value, "긴긴밤")
+        self.assertEqual(worksheet["C3"].value, 3)
+        self.assertEqual(worksheet["B4"].value, "체리새우: 비밀글입니다")
+        self.assertEqual(worksheet["C4"].value, 2)
+        self.assertEqual(worksheet["F3"].value, 1)
+
     def test_catalog_rows_support_second_row_dls_header(self):
         rows = [
             ["황지중앙초등학교도서관 도서목록"],

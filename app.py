@@ -630,15 +630,29 @@ def load_export_template_workbook():
 
     workbook = openpyxl.Workbook()
     worksheet = workbook.active
-    worksheet.merge_cells("A1:G1")
+    worksheet.merge_cells("A1:H1")
     worksheet["A1"] = "2026년 황지중앙초 학생, 학부모 구입 희망도서 목록"
-    headers = ["순", "도서명", "출판사", "지은이", "수량", "금액(정가)", "할인금액"]
+    headers = [
+        "순",
+        "도서명",
+        "희망 인원",
+        "출판사",
+        "지은이",
+        "수량",
+        "금액(정가)",
+        "할인금액",
+    ]
     for index, header in enumerate(headers, start=1):
         worksheet.cell(row=2, column=index, value=header)
     return workbook
 
 
 def configure_export_sheet(worksheet):
+    for merged_range in list(worksheet.merged_cells.ranges):
+        if merged_range.min_row == 1 and merged_range.max_row == 1:
+            worksheet.unmerge_cells(str(merged_range))
+    worksheet.merge_cells("A1:H1")
+
     worksheet.sheet_properties.pageSetUpPr.fitToPage = True
     worksheet.page_setup.paperSize = worksheet.PAPERSIZE_A4
     worksheet.page_setup.orientation = worksheet.ORIENTATION_LANDSCAPE
@@ -654,22 +668,76 @@ def configure_export_sheet(worksheet):
     worksheet.print_title_rows = "1:2"
     worksheet.freeze_panes = "A3"
     worksheet.column_dimensions["A"].width = 8
-    worksheet.column_dimensions["B"].width = 42
-    worksheet.column_dimensions["C"].width = 14
+    worksheet.column_dimensions["B"].width = 38
+    worksheet.column_dimensions["C"].width = 11
     worksheet.column_dimensions["D"].width = 14
-    worksheet.column_dimensions["E"].width = 7
-    worksheet.column_dimensions["F"].width = 12
-    worksheet.column_dimensions["G"].width = 11
+    worksheet.column_dimensions["E"].width = 19
+    worksheet.column_dimensions["F"].width = 7
+    worksheet.column_dimensions["G"].width = 12
+    worksheet.column_dimensions["H"].width = 11
     worksheet.row_dimensions[1].height = 42
     worksheet.row_dimensions[2].height = 30
     worksheet["A1"].alignment = Alignment(horizontal="center", vertical="center")
     worksheet["A1"].font = Font(name="맑은 고딕", size=20)
 
+    headers = [
+        "순",
+        "도서명",
+        "희망 인원",
+        "출판사",
+        "지은이",
+        "수량",
+        "금액(정가)",
+        "할인금액",
+    ]
     header_fill = PatternFill(fill_type="solid", start_color="E8C840", end_color="E8C840")
     center_alignment = Alignment(horizontal="center", vertical="center")
-    for col in range(1, 8):
+    for col, header in enumerate(headers, start=1):
+        worksheet.cell(row=2, column=col, value=header)
         worksheet.cell(row=2, column=col).fill = header_fill
         worksheet.cell(row=2, column=col).alignment = center_alignment
+
+
+def aggregate_recommended_books(submissions):
+    aggregated = {}
+
+    for submission in submissions:
+        student_book_keys = set()
+        for book in submission.get("books", []):
+            title_key = normalize_title(book.get("title", ""))
+            isbn_key = normalize_isbn(book.get("isbn", book.get("isbn13", "")))
+            if title_key:
+                book_key = ("title", title_key)
+            elif isbn_key:
+                book_key = ("isbn", isbn_key)
+            else:
+                continue
+
+            if book_key in student_book_keys:
+                continue
+            student_book_keys.add(book_key)
+
+            if book_key not in aggregated:
+                aggregated[book_key] = {
+                    **book,
+                    "recommendationCount": 0,
+                }
+            else:
+                saved_book = aggregated[book_key]
+                for field in ("title", "author", "publisher", "isbn", "isbn13", "price", "salePrice"):
+                    if not saved_book.get(field) and book.get(field):
+                        saved_book[field] = book[field]
+
+            aggregated[book_key]["recommendationCount"] += 1
+
+    return sorted(
+        aggregated.values(),
+        key=lambda book: (
+            -book["recommendationCount"],
+            str(book.get("title", "")).casefold(),
+            str(book.get("author", "")).casefold(),
+        ),
+    )
 
 
 def fill_export_sheet(worksheet, grade, class_num, books, include_grade_class=True):
@@ -679,7 +747,8 @@ def fill_export_sheet(worksheet, grade, class_num, books, include_grade_class=Tr
     else:
         worksheet["A1"] = "2026년 황지중앙초 학생, 학부모 구입 희망도서 목록"
 
-    for row_num in range(3, 43):
+    last_book_row = max(42, len(books) + 2)
+    for row_num in range(3, last_book_row + 1):
         seq = row_num - 2
         book = books[seq - 1] if seq - 1 < len(books) else {}
         price = int(book.get("price", 0) or 0)
@@ -690,20 +759,27 @@ def fill_export_sheet(worksheet, grade, class_num, books, include_grade_class=Tr
         worksheet.cell(row=row_num, column=1, value=seq)
         worksheet.cell(row=row_num, column=1).alignment = Alignment(horizontal="center", vertical="center")
         worksheet.cell(row=row_num, column=2, value=book.get("title", ""))
-        worksheet.cell(row=row_num, column=3, value=book.get("publisher", ""))
-        worksheet.cell(row=row_num, column=4, value=book.get("author", ""))
-        worksheet.cell(row=row_num, column=5, value=1 if book else None)
-        worksheet.cell(row=row_num, column=5).alignment = Alignment(horizontal="center", vertical="center")
-        worksheet.cell(row=row_num, column=6, value=price if book else None)
-        worksheet.cell(row=row_num, column=7, value=sale_price if book else 0)
-        worksheet.cell(row=row_num, column=6).number_format = "#,##0"
+        worksheet.cell(
+            row=row_num,
+            column=3,
+            value=book.get("recommendationCount") if book else None,
+        )
+        worksheet.cell(row=row_num, column=3).alignment = Alignment(horizontal="center", vertical="center")
+        worksheet.cell(row=row_num, column=4, value=book.get("publisher", ""))
+        worksheet.cell(row=row_num, column=5, value=book.get("author", ""))
+        worksheet.cell(row=row_num, column=6, value=1 if book else None)
+        worksheet.cell(row=row_num, column=6).alignment = Alignment(horizontal="center", vertical="center")
+        worksheet.cell(row=row_num, column=7, value=price if book else None)
+        worksheet.cell(row=row_num, column=8, value=sale_price if book else None)
         worksheet.cell(row=row_num, column=7).number_format = "#,##0"
+        worksheet.cell(row=row_num, column=8).number_format = "#,##0"
 
-    worksheet.cell(row=43, column=2, value="계")
-    worksheet.cell(row=43, column=6, value="=SUM(F3:F42)")
-    worksheet.cell(row=43, column=6).number_format = "#,##0"
-    worksheet.cell(row=43, column=7, value="=SUM(G3:G42)")
-    worksheet.cell(row=43, column=7).number_format = "#,##0"
+    total_row = last_book_row + 1
+    worksheet.cell(row=total_row, column=2, value="계")
+    worksheet.cell(row=total_row, column=7, value=f"=SUM(G3:G{last_book_row})")
+    worksheet.cell(row=total_row, column=7).number_format = "#,##0"
+    worksheet.cell(row=total_row, column=8, value=f"=SUM(H3:H{last_book_row})")
+    worksheet.cell(row=total_row, column=8).number_format = "#,##0"
 
 
 def build_admin_workbook(submissions):
@@ -714,24 +790,22 @@ def build_admin_workbook(submissions):
     groups = {}
     for submission in submissions:
         key = (submission["grade"], submission["classNum"])
-        groups.setdefault(key, [])
-        groups[key].extend(submission.get("books", []))
+        groups.setdefault(key, []).append(submission)
 
     if not submissions:
         worksheet = template_sheet
         worksheet.title = "희망도서"
         fill_export_sheet(worksheet, "", "", [], include_grade_class=False)
     elif len(groups) == 1:
-        (grade, class_num), books = next(iter(sorted(groups.items())))
+        (grade, class_num), group_submissions = next(iter(sorted(groups.items())))
         worksheet = template_sheet
         worksheet.title = f"{grade}학년 {class_num}반"
+        books = aggregate_recommended_books(group_submissions)
         fill_export_sheet(worksheet, grade, class_num, books, include_grade_class=True)
     else:
-        all_books = []
-        for submission in submissions:
-            all_books.extend(submission.get("books", []))
         worksheet = template_sheet
         worksheet.title = "황지중앙초"
+        all_books = aggregate_recommended_books(submissions)
         fill_export_sheet(worksheet, "", "", all_books, include_grade_class=False)
 
     if "template" in workbook.sheetnames and len(workbook.sheetnames) > 1:

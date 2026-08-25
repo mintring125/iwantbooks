@@ -59,13 +59,22 @@
                 <div class="panel-head bestseller-head">
                     <div>
                         <h2 id="bestsellerHeading">🌟 지금 인기 있는 어린이 책</h2>
-                        <p>전체 베스트셀러와 내 학년에 맞는 인기책을 함께 둘러보세요.</p>
+                        <p>아래 제목을 눌러 전체 순위와 내 학년 인기책을 바꿔 볼 수 있어요.</p>
                     </div>
                 </div>
 
-                <div class="recommendation-group">
+                <div class="recommendation-tabs" role="tablist" aria-label="인기 도서 목록 선택">
+                    <button id="bestsellerTab" class="recommendation-tab active" type="button" role="tab" aria-selected="true" aria-controls="bestsellerView" onclick="switchRecommendationView('bestseller')">
+                        🏆 전체 어린이책 순위
+                    </button>
+                    <button id="gradePopularTab" class="recommendation-tab" type="button" role="tab" aria-selected="false" aria-controls="gradePopularView" disabled onclick="switchRecommendationView('grade')">
+                        🎒 학년별 인기책
+                    </button>
+                </div>
+
+                <div id="bestsellerView" class="recommendation-group" role="tabpanel" aria-labelledby="bestsellerTab">
                     <div class="recommendation-title-row">
-                        <h3>🏆 어린이 베스트셀러</h3>
+                        <h3>전체 어린이 분야 베스트셀러</h3>
                         <span>전체 어린이 분야</span>
                     </div>
                     <div id="bestsellerTrack" class="bestseller-track" tabindex="0" aria-label="어린이 베스트셀러 목록">
@@ -73,9 +82,9 @@
                     </div>
                 </div>
 
-                <div class="recommendation-group grade-popular-group">
+                <div id="gradePopularView" class="recommendation-group grade-popular-group hidden" role="tabpanel" aria-labelledby="gradePopularTab" aria-hidden="true">
                     <div class="recommendation-title-row">
-                        <h3 id="gradePopularHeading">🎒 학년별 인기책</h3>
+                        <h3 id="gradePopularHeading">학년별 인기책</h3>
                         <span id="gradePopularCaption">학년을 선택하면 맞춤 인기책이 나타나요.</span>
                     </div>
                     <div id="gradePopularTrack" class="bestseller-track" tabindex="0" aria-label="선택한 학년 인기책 목록">
@@ -125,7 +134,7 @@
                 </div>
 
                 <div id="adminTools" class="hidden">
-                    <div class="admin-catalog-box">
+                    <div class="admin-catalog-box hidden" aria-hidden="true">
                         <h3>📚 도서관 소장 도서 (복본 확인용)</h3>
                         <p class="catalog-stats">현재 올라간 목록 수: <span id="catalogCount">불러오는 중...</span></p>
                         <div class="admin-catalog-actions">
@@ -347,6 +356,25 @@
             return listName === "grade" ? gradePopularBooks : bestsellerBooks;
         }
 
+        function switchRecommendationView(view) {
+            const showGrade = view === "grade";
+            const gradeTab = document.getElementById("gradePopularTab");
+            if(showGrade && gradeTab.disabled) return;
+
+            const bestsellerTab = document.getElementById("bestsellerTab");
+            const bestsellerView = document.getElementById("bestsellerView");
+            const gradeView = document.getElementById("gradePopularView");
+
+            bestsellerTab.classList.toggle("active", !showGrade);
+            gradeTab.classList.toggle("active", showGrade);
+            bestsellerTab.setAttribute("aria-selected", String(!showGrade));
+            gradeTab.setAttribute("aria-selected", String(showGrade));
+            bestsellerView.classList.toggle("hidden", showGrade);
+            gradeView.classList.toggle("hidden", !showGrade);
+            bestsellerView.setAttribute("aria-hidden", String(showGrade));
+            gradeView.setAttribute("aria-hidden", String(!showGrade));
+        }
+
         function renderRecommendationTrack(trackId, books, listName) {
             const track = document.getElementById(trackId);
             track.innerHTML = books.map((book, index) => {
@@ -395,15 +423,21 @@
 
             gradePopularBooks = [];
             if(!gradeBand) {
-                heading.textContent = "🎒 학년별 인기책";
+                heading.textContent = "학년별 인기책";
+                document.getElementById("gradePopularTab").textContent = "🎒 학년별 인기책";
+                document.getElementById("gradePopularTab").disabled = true;
                 caption.textContent = "학년을 선택하면 맞춤 인기책이 나타나요.";
                 track.innerHTML = '<div class="helper-card">위에서 학년을 선택해 주세요.</div>';
+                switchRecommendationView("bestseller");
                 return;
             }
 
-            heading.textContent = `🎒 ${gradeBand} 인기책`;
+            heading.textContent = `${gradeBand} 인기책`;
+            document.getElementById("gradePopularTab").textContent = `🎒 ${gradeBand} 인기책`;
+            document.getElementById("gradePopularTab").disabled = false;
             caption.textContent = `${grade}학년에게 맞는 알라딘 인기 순위`;
             track.innerHTML = `<div class="helper-card">${gradeBand} 인기책을 불러오는 중입니다...</div>`;
+            switchRecommendationView("grade");
 
             if(gradePopularClientCache[gradeBand]) {
                 gradePopularBooks = gradePopularClientCache[gradeBand];
@@ -748,7 +782,6 @@
                 document.getElementById("adminLoginBox").classList.add("hidden");
                 document.getElementById("adminTools").classList.remove("hidden");
                 loadAdminSubmissions();
-                loadCatalogInfo();
             } else {
                 showAlert('로그인 실패', d.error);
             }
