@@ -1,5 +1,7 @@
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from time import sleep
 from unittest.mock import patch
 
 import requests
@@ -45,6 +47,8 @@ class SearchBooksTest(unittest.TestCase):
         app_module.bestseller_cache["items"] = []
         app_module.bestseller_cache["expires_at"] = 0.0
         app_module.bestseller_cache["retry_after"] = 0.0
+        app_module.invalidate_catalog_cache()
+        app_module.aladin_backoff["until"] = 0.0
 
     def tearDown(self):
         self.api_key_patch.stop()
@@ -59,6 +63,42 @@ class SearchBooksTest(unittest.TestCase):
             mock_get.call_args.args[0],
             "https://www.aladin.co.kr/ttb/api/ItemSearch.aspx",
         )
+
+    def test_repeated_search_uses_memory_cache(self):
+        with patch.object(
+            app_module.requests,
+            "get",
+            return_value=DummySearchResponse(),
+        ) as mock_get:
+            first_response = self.client.get("/api/search?q=긴긴밤")
+            second_response = self.client.get("/api/search?q=%20긴긴밤%20")
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(mock_get.call_count, 1)
+
+    def test_simultaneous_identical_searches_share_one_upstream_request(self):
+        def slow_search(*_args, **_kwargs):
+            sleep(0.05)
+            return []
+
+        def search_once():
+            with app_module.app.test_client() as client:
+                return client.get("/api/search?q=긴긴밤").status_code
+
+        with (
+            patch.object(
+                app_module,
+                "request_aladin_items",
+                side_effect=slow_search,
+            ) as mock_request,
+            patch.object(app_module, "serialize_aladin_books", return_value=[]),
+        ):
+            with ThreadPoolExecutor(max_workers=32) as executor:
+                statuses = list(executor.map(lambda _index: search_once(), range(100)))
+
+        self.assertEqual(statuses, [200] * 100)
+        self.assertEqual(mock_request.call_count, 1)
 
     def test_aladin_search_hides_upstream_exception_details(self):
         with patch.object(

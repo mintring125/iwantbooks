@@ -1,7 +1,7 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "deploy": {
-    "startCommand": "gunicorn app:app",
+    "startCommand": "gunicorn --workers 2 --threads 4 --worker-class gthread --timeout 30 --keep-alive 5 --max-requests 1000 --max-requests-jitter 100 app:app",
     "restartPolicyType": "on_failure",
     "restartPolicyMaxRetries": 10
   }

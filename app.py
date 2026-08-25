@@ -1,9 +1,12 @@
 import csv
+import hashlib
 import json
 import os
 import re
+import threading
 import time
 import unicodedata
+from collections import OrderedDict
 from datetime import datetime
 from io import BytesIO, TextIOWrapper
 
@@ -46,7 +49,26 @@ ALADIN_LIST_URL = os.environ.get(
 ALADIN_CHILDREN_CATEGORY_ID = 1108
 BESTSELLER_CACHE_SECONDS = 6 * 60 * 60
 BESTSELLER_RETRY_SECONDS = 10 * 60
+CATALOG_CACHE_SECONDS = int(os.environ.get("CATALOG_CACHE_SECONDS", "300"))
+SEARCH_CACHE_SECONDS = int(os.environ.get("SEARCH_CACHE_SECONDS", "600"))
+SEARCH_CACHE_MAX_ITEMS = int(os.environ.get("SEARCH_CACHE_MAX_ITEMS", "256"))
+ALADIN_MAX_CONCURRENT = int(os.environ.get("ALADIN_MAX_CONCURRENT", "2"))
+ALADIN_BACKOFF_SECONDS = int(os.environ.get("ALADIN_BACKOFF_SECONDS", "600"))
 bestseller_cache = {"expires_at": 0.0, "retry_after": 0.0, "items": []}
+bestseller_refresh_lock = threading.Lock()
+catalog_cache = {
+    "expires_at": 0.0,
+    "titles": frozenset(),
+    "isbns": frozenset(),
+}
+catalog_cache_lock = threading.RLock()
+search_cache = OrderedDict()
+search_cache_lock = threading.Lock()
+search_request_locks = [threading.Lock() for _ in range(32)]
+aladin_semaphore = threading.BoundedSemaphore(max(1, ALADIN_MAX_CONCURRENT))
+aladin_backoff = {"until": 0.0}
+aladin_backoff_lock = threading.Lock()
+database_init_lock = threading.Lock()
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "2026")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SUBMISSIONS_FILE = os.path.join(BASE_DIR, "submissions.json")
@@ -206,23 +228,83 @@ def ensure_database_ready():
     if db_initialized:
         return
 
-    with app.app_context():
-        db.create_all()
-        bootstrap_submissions_from_json()
-        bootstrap_catalog_from_json()
-    db_initialized = True
+    with database_init_lock:
+        if db_initialized:
+            return
+        with app.app_context():
+            db.create_all()
+            bootstrap_submissions_from_json()
+            bootstrap_catalog_from_json()
+        db_initialized = True
+
+
+def clear_search_cache():
+    with search_cache_lock:
+        search_cache.clear()
+
+
+def invalidate_catalog_cache():
+    with catalog_cache_lock:
+        catalog_cache["expires_at"] = 0.0
+        catalog_cache["titles"] = frozenset()
+        catalog_cache["isbns"] = frozenset()
+    clear_search_cache()
 
 
 def load_catalog_index():
     ensure_database_ready()
+    now = time.monotonic()
+    with catalog_cache_lock:
+        if now < catalog_cache["expires_at"]:
+            return catalog_cache["titles"], catalog_cache["isbns"]
 
-    rows = CatalogBook.query.with_entities(
-        CatalogBook.normalized_title,
-        CatalogBook.isbn,
-    ).all()
-    titles = {row[0] for row in rows if row[0]}
-    isbns = {row[1] for row in rows if row[1]}
-    return titles, isbns
+        rows = CatalogBook.query.with_entities(
+            CatalogBook.normalized_title,
+            CatalogBook.isbn,
+        ).all()
+        titles = frozenset(row[0] for row in rows if row[0])
+        isbns = frozenset(row[1] for row in rows if row[1])
+        catalog_cache["titles"] = titles
+        catalog_cache["isbns"] = isbns
+        catalog_cache["expires_at"] = now + max(1, CATALOG_CACHE_SECONDS)
+        return titles, isbns
+
+
+def normalize_search_query(query):
+    normalized = unicodedata.normalize("NFC", str(query or ""))
+    return re.sub(r"\s+", " ", normalized).strip().casefold()
+
+
+def get_cached_search_books(query):
+    key = normalize_search_query(query)
+    now = time.monotonic()
+    with search_cache_lock:
+        entry = search_cache.get(key)
+        if not entry:
+            return None
+        if now >= entry["expires_at"]:
+            search_cache.pop(key, None)
+            return None
+        search_cache.move_to_end(key)
+        return entry["books"]
+
+
+def cache_search_books(query, books):
+    key = normalize_search_query(query)
+    with search_cache_lock:
+        search_cache[key] = {
+            "expires_at": time.monotonic() + max(1, SEARCH_CACHE_SECONDS),
+            "books": books,
+        }
+        search_cache.move_to_end(key)
+        while len(search_cache) > max(1, SEARCH_CACHE_MAX_ITEMS):
+            search_cache.popitem(last=False)
+
+
+def search_request_lock(query):
+    digest = hashlib.sha256(normalize_search_query(query).encode("utf-8")).digest()
+    lock_index = int.from_bytes(digest[:2], "big") % len(search_request_locks)
+    return search_request_locks[lock_index]
 
 
 def is_catalog_duplicate(book_title, book_isbn, catalog_titles, catalog_isbns):
@@ -275,10 +357,20 @@ def check_duplicate(book_title, book_isbn=""):
 
 
 def request_aladin_items(url, params):
+    with aladin_backoff_lock:
+        if time.monotonic() < aladin_backoff["until"]:
+            raise requests.ConnectionError("Aladin API is temporarily rate limited")
+
     try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        with aladin_semaphore:
+            response = requests.get(url, params=params, timeout=(3.05, 10))
+            if getattr(response, "status_code", None) in (403, 429):
+                with aladin_backoff_lock:
+                    aladin_backoff["until"] = (
+                        time.monotonic() + max(1, ALADIN_BACKOFF_SECONDS)
+                    )
+            response.raise_for_status()
+            data = response.json()
     except requests.RequestException as exc:
         status_code = getattr(getattr(exc, "response", None), "status_code", None)
         app.logger.warning(
@@ -566,44 +658,55 @@ def search_books():
     if not ALADIN_API_KEY:
         return jsonify({"books": [], "error": "알라딘 API 키가 설정되어 있지 않습니다."})
 
-    try:
-        items = request_aladin_items(
-            ALADIN_SEARCH_URL,
-            {
-                "ttbkey": ALADIN_API_KEY,
-                "Query": query,
-                "QueryType": "Keyword",
-                "MaxResults": 20,
-                "start": 1,
-                "SearchTarget": "Book",
-                "output": "js",
-                "Version": "20131101",
-                "Cover": "Big",
-            },
-        )
-    except requests.RequestException:
-        return (
-            jsonify(
-                {
-                    "books": [],
-                    "error": "알라딘 도서 검색에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.",
-                }
-            ),
-            502,
-        )
-    except ValueError:
-        return (
-            jsonify(
-                {
-                    "books": [],
-                    "error": "알라딘 도서 검색 응답을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.",
-                }
-            ),
-            502,
-        )
+    cached_books = get_cached_search_books(query)
+    if cached_books is not None:
+        return jsonify({"books": cached_books})
 
-    single_books = [item for item in items if not is_set_product(item)]
-    return jsonify({"books": serialize_aladin_books(single_books)})
+    with search_request_lock(query):
+        cached_books = get_cached_search_books(query)
+        if cached_books is not None:
+            return jsonify({"books": cached_books})
+
+        try:
+            items = request_aladin_items(
+                ALADIN_SEARCH_URL,
+                {
+                    "ttbkey": ALADIN_API_KEY,
+                    "Query": query,
+                    "QueryType": "Keyword",
+                    "MaxResults": 20,
+                    "start": 1,
+                    "SearchTarget": "Book",
+                    "output": "js",
+                    "Version": "20131101",
+                    "Cover": "Big",
+                },
+            )
+        except requests.RequestException:
+            return (
+                jsonify(
+                    {
+                        "books": [],
+                        "error": "알라딘 도서 검색에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+                    }
+                ),
+                502,
+            )
+        except ValueError:
+            return (
+                jsonify(
+                    {
+                        "books": [],
+                        "error": "알라딘 도서 검색 응답을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.",
+                    }
+                ),
+                502,
+            )
+
+        single_books = [item for item in items if not is_set_product(item)]
+        books = serialize_aladin_books(single_books)
+        cache_search_books(query, books)
+        return jsonify({"books": books})
 
 
 @app.route("/api/bestsellers")
@@ -631,29 +734,37 @@ def children_bestsellers():
         and now >= bestseller_cache["retry_after"]
     )
     if should_refresh:
-        try:
-            items = request_aladin_items(
-                ALADIN_LIST_URL,
-                {
-                    "ttbkey": ALADIN_API_KEY,
-                    "QueryType": "Bestseller",
-                    "MaxResults": 50,
-                    "start": 1,
-                    "SearchTarget": "Book",
-                    "CategoryId": ALADIN_CHILDREN_CATEGORY_ID,
-                    "output": "js",
-                    "Version": "20131101",
-                    "Cover": "Big",
-                },
+        with bestseller_refresh_lock:
+            now = time.monotonic()
+            items = bestseller_cache["items"] or items
+            should_refresh = (
+                (not items or now >= bestseller_cache["expires_at"])
+                and now >= bestseller_cache["retry_after"]
             )
-            save_persisted_bestsellers(items)
-            bestseller_cache["items"] = items
-            bestseller_cache["expires_at"] = now + BESTSELLER_CACHE_SECONDS
-            bestseller_cache["retry_after"] = 0.0
-        except (requests.RequestException, ValueError):
-            bestseller_cache["retry_after"] = now + BESTSELLER_RETRY_SECONDS
-            if not items:
-                items = persisted_items
+            if should_refresh:
+                try:
+                    items = request_aladin_items(
+                        ALADIN_LIST_URL,
+                        {
+                            "ttbkey": ALADIN_API_KEY,
+                            "QueryType": "Bestseller",
+                            "MaxResults": 50,
+                            "start": 1,
+                            "SearchTarget": "Book",
+                            "CategoryId": ALADIN_CHILDREN_CATEGORY_ID,
+                            "output": "js",
+                            "Version": "20131101",
+                            "Cover": "Big",
+                        },
+                    )
+                    save_persisted_bestsellers(items)
+                    bestseller_cache["items"] = items
+                    bestseller_cache["expires_at"] = now + BESTSELLER_CACHE_SECONDS
+                    bestseller_cache["retry_after"] = 0.0
+                except (requests.RequestException, ValueError):
+                    bestseller_cache["retry_after"] = now + BESTSELLER_RETRY_SECONDS
+                    if not items:
+                        items = persisted_items
 
     if not items:
         return (
@@ -808,6 +919,7 @@ def clear_catalog():
         return jsonify({"error": "관리자 인증이 필요합니다."}), 401
     CatalogBook.query.delete()
     db.session.commit()
+    invalidate_catalog_cache()
     return jsonify({"success": True})
 
 
@@ -862,6 +974,7 @@ def upload_catalog():
             )
         )
     db.session.commit()
+    invalidate_catalog_cache()
 
     return jsonify(
         {
