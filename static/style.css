@@ -221,7 +221,6 @@ button, input, select {
     gap: 16px;
     overflow-x: auto;
     padding: 6px 4px 14px;
-    scroll-behavior: smooth;
     scrollbar-width: thin;
     scrollbar-color: var(--btn-primary-shadow) #fff3b0;
 }
@@ -748,11 +747,5 @@ button, input, select {
 
     .bestseller-controls {
         align-self: flex-end;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .bestseller-track {
-        scroll-behavior: auto;
     }
 }
