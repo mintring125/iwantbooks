@@ -340,7 +340,11 @@
             const track = document.getElementById("bestsellerTrack");
             const firstCard = track.querySelector(".bestseller-card");
             const distance = firstCard ? firstCard.getBoundingClientRect().width + 16 : 300;
-            track.scrollBy({ left: direction * distance * 2, behavior: "smooth" });
+            const nextPosition = track.scrollLeft + direction * distance * 2;
+            track.scrollLeft = Math.max(
+                0,
+                Math.min(nextPosition, track.scrollWidth - track.clientWidth),
+            );
         }
 
         function startBestsellerMotion() {
