@@ -967,6 +967,7 @@ def submit_books():
     class_num = str(data.get("classNum", "")).strip()
     student_number = str(data.get("studentNumber", "")).strip()
     books = data.get("books", [])
+    replace_existing = data.get("replaceExisting") is True
 
     if grade not in GRADE_OPTIONS:
         return jsonify({"success": False, "error": "학년을 다시 선택해 주세요."})
@@ -974,16 +975,55 @@ def submit_books():
         return jsonify({"success": False, "error": "반을 다시 선택해 주세요."})
     if student_number not in student_numbers_for_class(grade, class_num):
         return jsonify({"success": False, "error": "번호를 다시 선택해 주세요."})
-    if len(books) != 3:
+    if not isinstance(books, list) or len(books) != 3:
         return jsonify({"success": False, "error": "희망 도서 3권을 모두 선택해 주세요."})
 
-    if Submission.query.filter_by(
+    saved_books = [
+        {
+            "title": book.get("title", ""),
+            "author": book.get("author", ""),
+            "publisher": book.get("publisher", ""),
+            "price": int(book.get("price", 0) or 0),
+            "salePrice": int(book.get("salePrice", 0) or 0),
+            "isbn": book.get("isbn", ""),
+        }
+        for book in books
+        if isinstance(book, dict)
+    ]
+    if len(saved_books) != 3:
+        return jsonify({"success": False, "error": "희망 도서 정보를 다시 확인해 주세요."})
+
+    def existing_submission_response(submission):
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "code": "existing_submission",
+                    "error": f"{grade}학년 {class_num}반 {student_number}번은 이미 신청한 책이 있습니다.",
+                    "existingSubmission": submission.to_dict(),
+                }
+            ),
+            409,
+        )
+
+    existing_submission = Submission.query.filter_by(
         grade=grade, class_num=class_num, student_number=student_number
-    ).first():
+    ).first()
+    if existing_submission and not replace_existing:
+        return existing_submission_response(existing_submission)
+
+    encouragement = "책을 신청해 줘서 고마워요! 도서관에서 새로운 이야기와 자주 만나길 바라요. 📚"
+
+    if existing_submission:
+        existing_submission.student_label = f"{grade}학년 {class_num}반 {student_number}번"
+        existing_submission.books_json = json.dumps(saved_books, ensure_ascii=False)
+        existing_submission.created_at = datetime.utcnow()
+        db.session.commit()
         return jsonify(
             {
-                "success": False,
-                "error": f"{grade}학년 {class_num}반 {student_number}번은 이미 제출했습니다.",
+                "success": True,
+                "replaced": True,
+                "message": f"{grade}학년 {class_num}반 {student_number}번의 기존 신청을 새 책 3권으로 바꿨습니다.\n\n{encouragement}",
             }
         )
 
@@ -992,28 +1032,25 @@ def submit_books():
         class_num=class_num,
         student_number=student_number,
         student_label=f"{grade}학년 {class_num}반 {student_number}번",
-        books_json=json.dumps(
-            [
-                {
-                    "title": book.get("title", ""),
-                    "author": book.get("author", ""),
-                    "publisher": book.get("publisher", ""),
-                    "price": int(book.get("price", 0) or 0),
-                    "salePrice": int(book.get("salePrice", 0) or 0),
-                    "isbn": book.get("isbn", ""),
-                }
-                for book in books
-            ],
-            ensure_ascii=False,
-        ),
+        books_json=json.dumps(saved_books, ensure_ascii=False),
     )
     db.session.add(submission)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        concurrent_submission = Submission.query.filter_by(
+            grade=grade, class_num=class_num, student_number=student_number
+        ).first()
+        if concurrent_submission:
+            return existing_submission_response(concurrent_submission)
+        raise
 
     return jsonify(
         {
             "success": True,
-            "message": f"{grade}학년 {class_num}반 {student_number}번 신청이 저장되었습니다.",
+            "replaced": False,
+            "message": f"{grade}학년 {class_num}반 {student_number}번 신청이 저장되었습니다.\n\n{encouragement}",
         }
     )
 

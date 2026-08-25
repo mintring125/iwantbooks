@@ -1,3 +1,4 @@
+import json
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -229,6 +230,140 @@ class SearchBooksTest(unittest.TestCase):
         self.assertIn('id="gradePopularTab"', html)
         self.assertIn('id="gradePopularView" class="recommendation-group grade-popular-group hidden"', html)
         self.assertIn('class="admin-catalog-box hidden"', html)
+        self.assertIn('id="replaceSubmissionModal"', html)
+        self.assertIn('function showReplacementModal(existingSubmission)', html)
+        self.assertIn('books: selectedBooks, replaceExisting', html)
+
+    def test_repeat_submission_returns_previous_books_for_confirmation(self):
+        old_books = [
+            {"title": "긴긴밤", "author": "루리"},
+            {"title": "아몬드", "author": "손원평"},
+            {"title": "마당을 나온 암탉", "author": "황선미"},
+        ]
+        existing = app_module.Submission(
+            grade="3",
+            class_num="1",
+            student_number="1",
+            student_label="3학년 1반 1번",
+            books_json=json.dumps(old_books, ensure_ascii=False),
+            created_at=datetime(2026, 8, 1, 9, 0, 0),
+        )
+        new_books = [
+            {"title": "새 책 1"},
+            {"title": "새 책 2"},
+            {"title": "새 책 3"},
+        ]
+
+        with (
+            app_module.app.app_context(),
+            patch.object(app_module, "ensure_database_ready"),
+            patch.object(app_module.Submission, "query") as query,
+        ):
+            query.filter_by.return_value.first.return_value = existing
+            response = self.client.post(
+                "/api/submit",
+                json={
+                    "grade": "3",
+                    "classNum": "1",
+                    "studentNumber": "1",
+                    "books": new_books,
+                },
+            )
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(data["code"], "existing_submission")
+        self.assertEqual(
+            [book["title"] for book in data["existingSubmission"]["books"]],
+            ["긴긴밤", "아몬드", "마당을 나온 암탉"],
+        )
+
+    def test_confirmed_repeat_submission_replaces_previous_books(self):
+        existing = app_module.Submission(
+            grade="3",
+            class_num="1",
+            student_number="1",
+            student_label="3학년 1반 1번",
+            books_json=json.dumps([{"title": "예전 책"}], ensure_ascii=False),
+            created_at=datetime(2026, 8, 1, 9, 0, 0),
+        )
+        new_books = [
+            {"title": "새 책 1", "author": "작가 1"},
+            {"title": "새 책 2", "author": "작가 2"},
+            {"title": "새 책 3", "author": "작가 3"},
+        ]
+
+        with (
+            app_module.app.app_context(),
+            patch.object(app_module, "ensure_database_ready"),
+            patch.object(app_module.Submission, "query") as query,
+            patch.object(app_module.db.session, "commit") as commit,
+        ):
+            query.filter_by.return_value.first.return_value = existing
+            response = self.client.post(
+                "/api/submit",
+                json={
+                    "grade": "3",
+                    "classNum": "1",
+                    "studentNumber": "1",
+                    "books": new_books,
+                    "replaceExisting": True,
+                },
+            )
+
+        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(data["success"])
+        self.assertTrue(data["replaced"])
+        self.assertIn("도서관에서 새로운 이야기와 자주 만나길 바라요", data["message"])
+        self.assertEqual(
+            [book["title"] for book in json.loads(existing.books_json)],
+            ["새 책 1", "새 책 2", "새 책 3"],
+        )
+        self.assertGreater(existing.created_at, datetime(2026, 8, 1, 9, 0, 0))
+        commit.assert_called_once()
+
+    def test_simultaneous_first_submissions_return_replacement_confirmation(self):
+        concurrent = app_module.Submission(
+            grade="3",
+            class_num="1",
+            student_number="1",
+            student_label="3학년 1반 1번",
+            books_json=json.dumps([{"title": "먼저 저장된 책"}], ensure_ascii=False),
+            created_at=datetime(2026, 8, 1, 9, 0, 0),
+        )
+        books = [{"title": f"새 책 {index}"} for index in range(1, 4)]
+
+        with (
+            app_module.app.app_context(),
+            patch.object(app_module, "ensure_database_ready"),
+            patch.object(app_module.Submission, "query") as query,
+            patch.object(app_module.db.session, "add"),
+            patch.object(
+                app_module.db.session,
+                "commit",
+                side_effect=app_module.IntegrityError("insert", {}, Exception("duplicate")),
+            ),
+            patch.object(app_module.db.session, "rollback") as rollback,
+        ):
+            query.filter_by.return_value.first.side_effect = [None, concurrent]
+            response = self.client.post(
+                "/api/submit",
+                json={
+                    "grade": "3",
+                    "classNum": "1",
+                    "studentNumber": "1",
+                    "books": books,
+                },
+            )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.get_json()["code"], "existing_submission")
+        self.assertEqual(
+            response.get_json()["existingSubmission"]["books"][0]["title"],
+            "먼저 저장된 책",
+        )
+        rollback.assert_called_once()
 
     def test_recommendation_export_deduplicates_counts_and_sorts_books(self):
         submissions = [

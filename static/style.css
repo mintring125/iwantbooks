@@ -185,13 +185,14 @@ button, input, select {
 
 .grade-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
 }
 
 .grade-grid .game-btn {
     width: 100%;
     min-width: 0;
+    padding-inline: 6px;
     white-space: nowrap;
     word-break: keep-all;
 }
@@ -770,10 +771,50 @@ button, input, select {
     margin-bottom: 16px;
     line-height: 1.5;
 }
+
+#alertMessage {
+    white-space: pre-line;
+}
+
+.existing-submission-list {
+    display: grid;
+    gap: 8px;
+    margin: 0 0 16px;
+    padding-left: 28px;
+}
+
+.existing-submission-list li {
+    padding: 10px 12px;
+    border: 2px solid rgba(51, 51, 51, 0.2);
+    border-radius: var(--radius-sm);
+    background: #fff8d8;
+}
+
+.existing-submission-list strong,
+.existing-submission-list span {
+    display: block;
+}
+
+.existing-submission-list span {
+    margin-top: 3px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.replacement-question {
+    font-weight: 800;
+}
 .modal-actions {
     display: flex;
     gap: 10px;
     justify-content: flex-end;
+}
+
+.modal-actions .game-btn {
+    padding-inline: 12px;
+    white-space: nowrap;
+    word-break: keep-all;
 }
 
 .summary-modal-content {
@@ -868,14 +909,10 @@ button, input, select {
         height: 170px;
     }
 
-    .grade-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
     .grade-grid .game-btn {
-        padding: 10px 8px;
-        font-size: 0.98rem;
-        letter-spacing: -0.02em;
+        padding: 10px 2px;
+        font-size: clamp(0.75rem, 3.05vw, 0.9rem);
+        letter-spacing: -0.04em;
     }
 
     .search-row,
@@ -957,4 +994,17 @@ button, input, select {
         grid-template-columns: 1fr;
     }
 
+}
+
+@media (max-width: 359px) {
+    .grade-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .grade-grid .game-btn {
+        padding: 10px 8px;
+        font-size: 0.98rem;
+        letter-spacing: -0.02em;
+    }
 }

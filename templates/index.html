@@ -233,6 +233,19 @@
         </div>
     </div>
 
+    <div id="replaceSubmissionModal" class="modal hidden" role="alertdialog" aria-modal="true" aria-hidden="true" aria-labelledby="replaceSubmissionTitle" onclick="closeReplacementModal()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <h2 id="replaceSubmissionTitle">📚 이미 신청한 책이 있어요</h2>
+            <p id="replaceSubmissionMessage"></p>
+            <ol id="existingSubmissionBooks" class="existing-submission-list"></ol>
+            <p class="replacement-question">지금 새로 고른 책 3권으로 기존 신청을 바꿀까요?</p>
+            <div class="modal-actions">
+                <button class="game-btn" type="button" onclick="closeReplacementModal()">그대로 두기</button>
+                <button id="replaceSubmissionConfirm" class="game-btn primary" type="button" onclick="confirmSubmissionReplacement()">기존 신청 바꾸기</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 스크립트 -->
     <script>
         const SCHOOL_STRUCTURE = {{ school_structure|tojson }};
@@ -250,6 +263,7 @@
         let bestsellerLastTime = 0;
         const pausedRecommendationTracks = new WeakSet();
         let pendingDuplicateBook = null;
+        let submissionInFlight = false;
         const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
         const modalCloseTimers = new WeakMap();
         const modalPreviousFocus = new WeakMap();
@@ -286,9 +300,16 @@
             modal.classList.remove("is-open");
             modal.classList.add("is-closing");
             const previousFocus = modalPreviousFocus.get(modal);
-            if(previousFocus && document.contains(previousFocus)) previousFocus.focus({preventScroll: true});
+            const canRestoreFocus = previousFocus
+                && previousFocus !== document.body
+                && document.contains(previousFocus)
+                && !previousFocus.disabled
+                && !previousFocus.closest(".modal.hidden, .modal.is-closing");
+            if(canRestoreFocus) previousFocus.focus({preventScroll: true});
+            if(modal.contains(document.activeElement)) document.activeElement.blur();
 
             const finishClose = () => {
+                if(modal.contains(document.activeElement)) document.activeElement.blur();
                 modal.classList.add("hidden");
                 modal.classList.remove("is-closing");
                 modal.setAttribute("aria-hidden", "true");
@@ -428,6 +449,7 @@
                 closeAlertModal();
                 closeSummaryModal();
                 closeDuplicateWarning();
+                closeReplacementModal();
             }
         });
 
@@ -871,25 +893,36 @@
             updateBestsellerSelectionButtons();
         }
 
-        async function submitBooks() {
+        async function submitBooks(replaceExisting = false) {
             if(!ensureInfo()) return;
             if(selectedBooks.length !== 3) { showAlert('잠깐!', '책 3권을 전부 골라야 합니다.'); return; }
-            
+            if(submissionInFlight) return;
+
             try {
+                submissionInFlight = true;
                 const btn = document.getElementById("submitBtn");
                 btn.textContent = "제출 중..."; btn.disabled = true;
+                const replaceBtn = document.getElementById("replaceSubmissionConfirm");
+                replaceBtn.disabled = true;
+                if(replaceExisting) replaceBtn.textContent = "교체 중...";
 
                 const res = await fetch("/api/submit", {
                     method: "POST", headers: {"Content-Type":"application/json"},
                     body: JSON.stringify({
                         grade: selectedGrade, classNum: selectedClass, studentNumber: selectedNumber,
-                        books: selectedBooks
+                        books: selectedBooks, replaceExisting
                     })
                 });
                 const data = await res.json();
                 if(data.success) {
-                    showAlert('성공', data.message);
+                    if(replaceExisting) {
+                        closeReplacementModal();
+                        if(!prefersReducedMotion.matches) await new Promise(resolve => setTimeout(resolve, 200));
+                    }
+                    showAlert(data.replaced ? '신청을 바꿨어요!' : '신청 완료!', data.message);
                     resetAll();
+                } else if(data.code === "existing_submission" && data.existingSubmission) {
+                    showReplacementModal(data.existingSubmission);
                 } else {
                     showAlert('오류', data.error);
                 }
@@ -898,15 +931,39 @@
             } finally {
                 const btn = document.getElementById("submitBtn");
                 btn.textContent = "✅ 이대로 제출하기"; btn.disabled = selectedBooks.length !== 3;
+                const replaceBtn = document.getElementById("replaceSubmissionConfirm");
+                replaceBtn.disabled = false;
+                replaceBtn.textContent = "기존 신청 바꾸기";
+                submissionInFlight = false;
             }
+        }
+
+        function showReplacementModal(existingSubmission) {
+            const studentLabel = existingSubmission.studentLabel || `${selectedGrade}학년 ${selectedClass}반 ${selectedNumber}번`;
+            const books = Array.isArray(existingSubmission.books) ? existingSubmission.books : [];
+            document.getElementById("replaceSubmissionMessage").textContent = `${studentLabel}이(가) 전에 신청한 책입니다.`;
+            document.getElementById("existingSubmissionBooks").innerHTML = books.map(book => `
+                <li>
+                    <strong>${escapeHtml(book.title || "제목 없음")}</strong>
+                    ${book.author ? `<span>${escapeHtml(book.author)}</span>` : ""}
+                </li>
+            `).join("");
+            openAnimatedModal("replaceSubmissionModal");
+        }
+
+        function closeReplacementModal() {
+            closeAnimatedModal("replaceSubmissionModal");
+        }
+
+        function confirmSubmissionReplacement() {
+            submitBooks(true);
         }
 
         function resetAll() {
             selectedGrade=""; selectedClass=""; selectedNumber=""; selectedBooks=[]; currentBooks=[];
             document.getElementById("searchInput").value = "";
             document.getElementById("searchResults").innerHTML = '<div class="helper-card" style="grid-column: 1/-1;">보고 싶은 책을 검색해 보세요!</div>';
-            document.querySelectorAll(".game-btn").forEach(b => {b.classList.remove('active', 'primary')});
-            document.querySelector(".mode-actions .game-btn").classList.add('active', 'primary');
+            document.querySelectorAll(".grade-grid .game-btn, #classButtons .game-btn, #numberButtons .game-btn").forEach(b => b.classList.remove('active', 'primary'));
             renderClassBtns(); renderNumBtns(); updateSummary(); freshBasket(); loadGradePopularBooks("");
         }
 
