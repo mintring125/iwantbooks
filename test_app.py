@@ -26,6 +26,8 @@ class DummyMixedSearchResponse(DummySearchResponse):
             "item": [
                 {"title": "마법천자문 세트 - 전 5권"},
                 {"title": "흔한남매 1~10 전권"},
+                {"title": "마법천자문 1 - 불어라 바람 풍! (세트 낱권)"},
+                {"title": "세트로 배우는 어린이 과학", "author": "김과학"},
                 {"title": "긴긴밤", "author": "루리"},
             ]
         }
@@ -83,7 +85,11 @@ class SearchBooksTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             [book["title"] for book in response.get_json()["books"]],
-            ["긴긴밤"],
+            [
+                "마법천자문 1 - 불어라 바람 풍! (세트 낱권)",
+                "세트로 배우는 어린이 과학",
+                "긴긴밤",
+            ],
         )
 
     def test_children_bestsellers_use_children_category_and_fifty_results(self):

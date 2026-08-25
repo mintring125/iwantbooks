@@ -287,11 +287,20 @@ def request_aladin_items(url, params):
 
 def is_set_product(item):
     title = str(item.get("title", ""))
+    if "낱권" in title or "단권" in title:
+        return False
+
     return bool(
-        "세트" in title
-        or "전권" in title
+        "전권" in title
         or re.search(r"(?:전|총)\s*\d+\s*권", title)
-        or re.search(r"(?:^|[\s\[(\-])set(?:$|[\s\])\-:])", title, re.IGNORECASE)
+        or re.search(r"[\[【(]\s*세트\s*[\]】)]", title)
+        or re.search(r"(?:^|[\s\-:：])\d+\s*권\s*세트(?:$|[\s\-:：])", title)
+        or re.search(r"세트\s*[-:：]\s*(?:전|총)?\s*\d+\s*권", title)
+        or re.search(
+            r"(?:^|[\s\[(\-])set\s*[-:：]\s*(?:all|\d+\s*(?:books?|volumes?))",
+            title,
+            re.IGNORECASE,
+        )
     )
 
 
