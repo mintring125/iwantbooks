@@ -5,5 +5,6 @@ __pycache__/
 school_books.db
 instance/
 .pytest_cache/
+.venv/
 .omc/
 *.xlsx

@@ -32,8 +32,11 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 db_initialized = False
 
-ALADIN_API_KEY = os.environ.get("ALADIN_API_KEY", "ttbmintkaori0528001")
-ALADIN_SEARCH_URL = "https://www.aladin.co.kr/ttb/api/ItemSearch.aspx"
+ALADIN_API_KEY = os.environ.get("ALADIN_API_KEY", "").strip()
+ALADIN_SEARCH_URL = os.environ.get(
+    "ALADIN_SEARCH_URL",
+    "https://aladin.co.kr/ttb/api/ItemSearch.aspx",
+).strip()
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "2026")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SUBMISSIONS_FILE = os.path.join(BASE_DIR, "submissions.json")

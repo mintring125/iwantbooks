@@ -11,7 +11,7 @@
 
 - **백엔드**: Python Flask
 - **프론트엔드**: HTML + Vanilla CSS + Vanilla JS (프레임워크 없음)
-- **도서 검색**: 알라딘 Open API (`https://www.aladin.co.kr/ttb/api/ItemSearch.aspx`)
+- **도서 검색**: 알라딘 Open API (`https://aladin.co.kr/ttb/api/ItemSearch.aspx`)
 - **복본 확인**: 선생님이 업로드한 소장 도서 목록 (엑셀/CSV) 기반 자동 매칭
 - **엑셀 저장**: openpyxl
 - **제출 기록**: JSON 파일 (`submissions.json`)
@@ -55,7 +55,7 @@ Claude Code가 이미 `app.py`를 구현했습니다. 현재 포함된 기능:
 | `/api/admin/export` | GET | 신청 결과 엑셀 다운로드 | ✅ 구현됨 |
 
 현재 `app.py`의 설정:
-- 알라딘 API 키: `ttbmintkaori0528001` (이미 설정됨)
+- 알라딘 API 키: `ALADIN_API_KEY` 환경변수로만 설정
 - 관리자 비밀번호: `2026`
 - 학년: 1~6학년, 1~2학년은 1반, 3~6학년은 1~2반
 - 학생 식별: 학년 + 반 + 번호 (1~30번)

@@ -18,6 +18,11 @@ class SearchBooksTest(unittest.TestCase):
     def setUp(self):
         app_module.app.config["TESTING"] = True
         self.client = app_module.app.test_client()
+        self.api_key_patch = patch.object(app_module, "ALADIN_API_KEY", "test-key")
+        self.api_key_patch.start()
+
+    def tearDown(self):
+        self.api_key_patch.stop()
 
     def test_aladin_search_uses_https_endpoint(self):
         with patch.object(app_module.requests, "get", return_value=DummySearchResponse()) as mock_get:
@@ -27,7 +32,7 @@ class SearchBooksTest(unittest.TestCase):
         self.assertEqual(response.get_json(), {"books": []})
         self.assertEqual(
             mock_get.call_args.args[0],
-            "https://www.aladin.co.kr/ttb/api/ItemSearch.aspx",
+            "https://aladin.co.kr/ttb/api/ItemSearch.aspx",
         )
 
     def test_aladin_search_hides_upstream_exception_details(self):
@@ -35,7 +40,7 @@ class SearchBooksTest(unittest.TestCase):
             app_module.requests,
             "get",
             side_effect=requests.exceptions.ConnectTimeout(
-                "HTTPConnectionPool(host='www.aladin.co.kr', port=80): timed out"
+                "HTTPConnectionPool(host='aladin.co.kr', port=443): timed out"
             ),
         ):
             response = self.client.get("/api/search?q=test")
