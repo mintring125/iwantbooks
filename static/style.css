@@ -225,26 +225,38 @@ button, input, select {
     flex-direction: column;
     gap: 5px;
     color: var(--text-main);
-    font: inherit;
     text-decoration: none;
-    text-align: left;
     border: 3px solid var(--line);
     border-radius: var(--radius-md);
     background: #fff;
     padding: 8px;
     box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.12);
     transition: transform 0.15s;
-    cursor: pointer;
 }
 
 .bestseller-card:hover,
-.bestseller-card:focus-visible {
+.bestseller-card:focus-within {
     transform: translateY(-4px);
 }
 
-.bestseller-card:focus-visible {
+.bestseller-summary-button:focus-visible {
     outline: 4px solid var(--btn-active);
     outline-offset: 2px;
+}
+
+.bestseller-summary-button {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 5px;
+    color: var(--text-main);
+    font: inherit;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
 }
 
 .bestseller-card img {
@@ -266,12 +278,23 @@ button, input, select {
     -webkit-line-clamp: 2;
 }
 
-.bestseller-card > span:last-child {
+.bestseller-summary-button > span:last-child {
     overflow: hidden;
     color: var(--text-muted);
     font-size: 0.78rem;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.bestseller-select-btn {
+    width: 100%;
+    margin-top: 4px;
+    padding: 7px 4px;
+    font-size: 0.82rem;
+}
+
+.bestseller-select-btn.duplicate-choice {
+    color: var(--alert-color);
 }
 
 .bestseller-rank {

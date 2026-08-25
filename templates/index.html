@@ -317,19 +317,43 @@
                         ? '<span class="bestseller-owned">도서관에 있어요</span>'
                         : '';
                     return `
-                        <button class="bestseller-card" type="button" onclick="openBestsellerSummary(${index})" aria-label="${index + 1}위 ${escapeHtml(book.title)} 책 내용 보기">
-                            <span class="bestseller-rank">${index + 1}</span>
-                            ${ownedBadge}
-                            <img src="${escapeHtml(cover)}" alt="${escapeHtml(book.title)} 표지" loading="lazy">
-                            <strong>${escapeHtml(book.title)}</strong>
-                            <span>${escapeHtml(book.author)}</span>
-                        </button>
+                        <div class="bestseller-card">
+                            <button class="bestseller-summary-button" type="button" onclick="openBestsellerSummary(${index})" aria-label="${index + 1}위 ${escapeHtml(book.title)} 책 내용 보기">
+                                <span class="bestseller-rank">${index + 1}</span>
+                                ${ownedBadge}
+                                <img src="${escapeHtml(cover)}" alt="${escapeHtml(book.title)} 표지" loading="lazy">
+                                <strong>${escapeHtml(book.title)}</strong>
+                                <span>${escapeHtml(book.author)}</span>
+                            </button>
+                            <button class="game-btn primary bestseller-select-btn" type="button" data-bestseller-index="${index}" onclick="toggleBestseller(${index})">선택하기</button>
+                        </div>
                     `;
                 }).join('');
+                updateBestsellerSelectionButtons();
                 startBestsellerMotion();
             } catch(error) {
                 track.innerHTML = '<div class="helper-card">지금은 인기 어린이 책을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</div>';
             }
+        }
+
+        function updateBestsellerSelectionButtons() {
+            document.querySelectorAll(".bestseller-select-btn").forEach(button => {
+                const index = Number(button.dataset.bestsellerIndex);
+                const book = bestsellerBooks[index];
+                if(!book) return;
+                const picked = selectedBooks.some(
+                    selected => selected.isbn === book.isbn && selected.title === book.title
+                );
+                button.className = "game-btn bestseller-select-btn";
+                button.classList.toggle("active", picked);
+                button.classList.toggle("primary", !picked && !book.isDuplicate);
+                button.classList.toggle("duplicate-choice", !picked && book.isDuplicate);
+                button.textContent = picked ? "✓ 선택됨" : (book.isDuplicate ? "그래도 고르기" : "선택하기");
+                button.setAttribute(
+                    "aria-label",
+                    picked ? `${book.title} 선택 취소` : `${book.title} 선택하기`,
+                );
+            });
         }
 
         function startBestsellerMotion() {
@@ -437,14 +461,18 @@
         }
 
         function pickBook(i) {
-            const book = currentBooks[i];
+            addSelectedBook(currentBooks[i]);
+        }
+
+        function addSelectedBook(book) {
+            if(!book) return;
             if(selectedBooks.length >= 3) {
                 showAlert('안내', '책은 3권까지만 고를 수 있습니다.'); return;
             }
             if(selectedBooks.some(s => s.isbn===book.isbn && s.title===book.title)) return;
             selectedBooks.push(book);
             freshBasket();
-            drawBooks(currentBooks);
+            if(currentBooks.length) drawBooks(currentBooks);
             if(selectedBooks.length === 3) {
                 document.querySelector(".basket-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
             }
@@ -463,10 +491,27 @@
             }
         }
 
+        function toggleBestseller(i) {
+            if(!ensureInfo()) return;
+            const book = bestsellerBooks[i];
+            if(!book) return;
+            const selectedIndex = selectedBooks.findIndex(
+                selected => selected.isbn === book.isbn && selected.title === book.title
+            );
+            if(selectedIndex >= 0) {
+                removeBook(selectedIndex);
+                return;
+            }
+            if(book.isDuplicate && !confirm("이 책은 이미 우리 학교 도서관에 있습니다.\n그래도 똑같은 책을 구입하도록 신청할까요?")) {
+                return;
+            }
+            addSelectedBook(book);
+        }
+
         function removeBook(i) {
             selectedBooks.splice(i, 1);
             freshBasket();
-            drawBooks(currentBooks);
+            if(currentBooks.length) drawBooks(currentBooks);
         }
 
         function freshBasket() {
@@ -487,6 +532,7 @@
                 `).join('');
             }
             document.getElementById("submitBtn").disabled = selectedBooks.length !== 3;
+            updateBestsellerSelectionButtons();
         }
 
         async function submitBooks() {
