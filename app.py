@@ -40,11 +40,11 @@ db_initialized = False
 ALADIN_API_KEY = os.environ.get("ALADIN_API_KEY", "").strip()
 ALADIN_SEARCH_URL = os.environ.get(
     "ALADIN_SEARCH_URL",
-    "https://www.aladin.co.kr/ttb/api/ItemSearch.aspx",
+    "https://aladin.co.kr/ttb/api/ItemSearch.aspx",
 ).strip()
 ALADIN_LIST_URL = os.environ.get(
     "ALADIN_LIST_URL",
-    "https://www.aladin.co.kr/ttb/api/ItemList.aspx",
+    "https://aladin.co.kr/ttb/api/ItemList.aspx",
 ).strip()
 ALADIN_CHILDREN_CATEGORY_ID = 1108
 BESTSELLER_CACHE_SECONDS = 6 * 60 * 60
