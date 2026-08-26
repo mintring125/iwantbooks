@@ -223,9 +223,14 @@ class SearchBooksTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('class="site-brand"', html)
         self.assertIn('src="/static/hwangji-book-request-header.png"', html)
+        self.assertIn('class="site-qr"', html)
+        self.assertIn('src="/static/site-qr.svg"', html)
+        self.assertIn('https://disciplined-possibility-production.up.railway.app/', html)
         self.assertIn('id="headerEffectCanvas"', html)
         self.assertIn('function openAnimatedModal(modalId)', html)
         self.assertIn('function startSearchPlaceholderTyping()', html)
+        self.assertIn('이곳에 책 이름을 입력하고 찾아보세요.', html)
+        self.assertNotIn('책 이름이나 작가를 적어보세요', html)
         self.assertIn('id="bestsellerTab"', html)
         self.assertIn('id="gradePopularTab"', html)
         self.assertIn('id="gradePopularView" class="recommendation-group grade-popular-group hidden"', html)
@@ -401,12 +406,15 @@ class SearchBooksTest(unittest.TestCase):
         )
 
         worksheet = app_module.build_admin_workbook(submissions).active
-        self.assertEqual(worksheet["C2"].value, "희망 인원")
+        self.assertEqual(worksheet["G2"].value, "할인금액")
+        self.assertEqual(worksheet["H2"].value, "희망 인원")
         self.assertEqual(worksheet["B3"].value, "긴긴밤")
-        self.assertEqual(worksheet["C3"].value, 3)
+        self.assertEqual(worksheet["H3"].value, 3)
         self.assertEqual(worksheet["B4"].value, "체리새우: 비밀글입니다")
-        self.assertEqual(worksheet["C4"].value, 2)
-        self.assertEqual(worksheet["F3"].value, 1)
+        self.assertEqual(worksheet["H4"].value, 2)
+        self.assertEqual(worksheet["E3"].value, 1)
+        self.assertEqual(worksheet["F43"].value, "=SUM(F3:F42)")
+        self.assertEqual(worksheet["G43"].value, "=SUM(G3:G42)")
 
     def test_catalog_rows_support_second_row_dls_header(self):
         rows = [

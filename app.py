@@ -635,12 +635,12 @@ def load_export_template_workbook():
     headers = [
         "순",
         "도서명",
-        "희망 인원",
         "출판사",
         "지은이",
         "수량",
         "금액(정가)",
         "할인금액",
+        "희망 인원",
     ]
     for index, header in enumerate(headers, start=1):
         worksheet.cell(row=2, column=index, value=header)
@@ -669,11 +669,11 @@ def configure_export_sheet(worksheet):
     worksheet.freeze_panes = "A3"
     worksheet.column_dimensions["A"].width = 8
     worksheet.column_dimensions["B"].width = 38
-    worksheet.column_dimensions["C"].width = 11
-    worksheet.column_dimensions["D"].width = 14
-    worksheet.column_dimensions["E"].width = 19
-    worksheet.column_dimensions["F"].width = 7
-    worksheet.column_dimensions["G"].width = 12
+    worksheet.column_dimensions["C"].width = 14
+    worksheet.column_dimensions["D"].width = 19
+    worksheet.column_dimensions["E"].width = 7
+    worksheet.column_dimensions["F"].width = 12
+    worksheet.column_dimensions["G"].width = 11
     worksheet.column_dimensions["H"].width = 11
     worksheet.row_dimensions[1].height = 42
     worksheet.row_dimensions[2].height = 30
@@ -683,12 +683,12 @@ def configure_export_sheet(worksheet):
     headers = [
         "순",
         "도서명",
-        "희망 인원",
         "출판사",
         "지은이",
         "수량",
         "금액(정가)",
         "할인금액",
+        "희망 인원",
     ]
     header_fill = PatternFill(fill_type="solid", start_color="E8C840", end_color="E8C840")
     center_alignment = Alignment(horizontal="center", vertical="center")
@@ -759,27 +759,27 @@ def fill_export_sheet(worksheet, grade, class_num, books, include_grade_class=Tr
         worksheet.cell(row=row_num, column=1, value=seq)
         worksheet.cell(row=row_num, column=1).alignment = Alignment(horizontal="center", vertical="center")
         worksheet.cell(row=row_num, column=2, value=book.get("title", ""))
+        worksheet.cell(row=row_num, column=3, value=book.get("publisher", ""))
+        worksheet.cell(row=row_num, column=4, value=book.get("author", ""))
+        worksheet.cell(row=row_num, column=5, value=1 if book else None)
+        worksheet.cell(row=row_num, column=5).alignment = Alignment(horizontal="center", vertical="center")
+        worksheet.cell(row=row_num, column=6, value=price if book else None)
+        worksheet.cell(row=row_num, column=7, value=sale_price if book else None)
         worksheet.cell(
             row=row_num,
-            column=3,
+            column=8,
             value=book.get("recommendationCount") if book else None,
         )
-        worksheet.cell(row=row_num, column=3).alignment = Alignment(horizontal="center", vertical="center")
-        worksheet.cell(row=row_num, column=4, value=book.get("publisher", ""))
-        worksheet.cell(row=row_num, column=5, value=book.get("author", ""))
-        worksheet.cell(row=row_num, column=6, value=1 if book else None)
-        worksheet.cell(row=row_num, column=6).alignment = Alignment(horizontal="center", vertical="center")
-        worksheet.cell(row=row_num, column=7, value=price if book else None)
-        worksheet.cell(row=row_num, column=8, value=sale_price if book else None)
+        worksheet.cell(row=row_num, column=8).alignment = Alignment(horizontal="center", vertical="center")
+        worksheet.cell(row=row_num, column=6).number_format = "#,##0"
         worksheet.cell(row=row_num, column=7).number_format = "#,##0"
-        worksheet.cell(row=row_num, column=8).number_format = "#,##0"
 
     total_row = last_book_row + 1
     worksheet.cell(row=total_row, column=2, value="계")
+    worksheet.cell(row=total_row, column=6, value=f"=SUM(F3:F{last_book_row})")
+    worksheet.cell(row=total_row, column=6).number_format = "#,##0"
     worksheet.cell(row=total_row, column=7, value=f"=SUM(G3:G{last_book_row})")
     worksheet.cell(row=total_row, column=7).number_format = "#,##0"
-    worksheet.cell(row=total_row, column=8, value=f"=SUM(H3:H{last_book_row})")
-    worksheet.cell(row=total_row, column=8).number_format = "#,##0"
 
 
 def build_admin_workbook(submissions):

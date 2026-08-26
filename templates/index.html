@@ -13,9 +13,15 @@
     <div class="page-shell">
         <header class="hero panel">
             <canvas id="headerEffectCanvas" class="header-effect-canvas" aria-hidden="true"></canvas>
-            <h1 class="site-brand">
-                <img src="/static/hwangji-book-request-header.png" width="640" height="251" alt="황지중앙초 도서신청">
-            </h1>
+            <div class="brand-row">
+                <h1 class="site-brand">
+                    <img src="/static/hwangji-book-request-header.png" width="640" height="251" alt="황지중앙초 도서신청">
+                </h1>
+                <a class="site-qr" href="https://disciplined-possibility-production.up.railway.app/" target="_blank" rel="noopener" aria-label="QR 코드 주소로 희망도서 신청 사이트 열기">
+                    <img src="/static/site-qr.svg" width="256" height="256" alt="희망도서 신청 사이트 QR 코드">
+                    <span>QR로 접속</span>
+                </a>
+            </div>
             <div class="mode-actions">
                 <button class="game-btn primary active" type="button" onclick="switchMode('student')">학생 모드</button>
                 <button class="game-btn" type="button" onclick="switchMode('admin')">관리자</button>
@@ -103,8 +109,9 @@
                 <div class="panel-head">
                     <h2>2️⃣ 책 검색하고 고르기</h2>
                 </div>
+                <p class="search-helper">💡 이곳에 책 이름을 입력하고 찾아보세요.</p>
                 <div class="search-row">
-                    <input type="text" id="searchInput" class="search-input" placeholder="책 이름이나 작가를 적어보세요" aria-label="책 이름이나 작가 검색" autocomplete="off">
+                    <input type="text" id="searchInput" class="search-input" placeholder="책 이름을 입력하세요" aria-label="책 이름 검색" autocomplete="off">
                     <button class="game-btn primary" id="searchBtn" type="button" onclick="searchBooks()">🔍 검색</button>
                 </div>
                 <div id="loadingSpinner" class="loading-spinner hidden" role="status" aria-live="polite">
