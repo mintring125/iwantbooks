@@ -269,6 +269,8 @@
         let bestsellerAnimationId = null;
         let bestsellerLastTime = 0;
         const pausedRecommendationTracks = new WeakSet();
+        const recommendationResumeTimers = new WeakMap();
+        const recommendationScrollPositions = new WeakMap();
         let pendingDuplicateBook = null;
         let submissionInFlight = false;
         const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -600,7 +602,9 @@
                 `;
             }).join('');
             track.scrollLeft = 0;
+            recommendationScrollPositions.set(track, 0);
             updateBestsellerSelectionButtons();
+            startBestsellerMotion();
         }
 
         async function loadBestsellers() {
@@ -612,7 +616,6 @@
                 bestsellerBooks = data.books || [];
                 if(!bestsellerBooks.length) throw new Error("목록 없음");
                 renderRecommendationTrack("bestsellerTrack", bestsellerBooks, "bestseller");
-                startBestsellerMotion();
             } catch(error) {
                 track.innerHTML = '<div class="helper-card content-enter">지금은 인기 어린이 책을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</div>';
             }
@@ -694,10 +697,18 @@
                     const elapsed = Math.min(time - bestsellerLastTime, 50);
                     document.querySelectorAll(".bestseller-track").forEach(track => {
                         if(!pausedRecommendationTracks.has(track) && track.scrollWidth > track.clientWidth) {
-                            track.scrollLeft += elapsed * 0.022;
-                            if(track.scrollLeft + track.clientWidth >= track.scrollWidth - 2) {
-                                track.scrollLeft = 0;
+                            let position = recommendationScrollPositions.get(track);
+                            if(!Number.isFinite(position) || Math.abs(track.scrollLeft - position) > 2) {
+                                position = track.scrollLeft;
                             }
+                            position += elapsed * 0.022;
+                            if(position + track.clientWidth >= track.scrollWidth - 2) {
+                                position = 0;
+                                track.scrollLeft = 0;
+                            } else {
+                                track.scrollLeft = position;
+                            }
+                            recommendationScrollPositions.set(track, position);
                         }
                     });
                 }
@@ -707,13 +718,23 @@
             bestsellerAnimationId = requestAnimationFrame(animate);
         }
 
+        function pauseRecommendationTrackBriefly(track, delay = 2200) {
+            pausedRecommendationTracks.add(track);
+            recommendationScrollPositions.set(track, track.scrollLeft);
+            const previousTimer = recommendationResumeTimers.get(track);
+            if(previousTimer) clearTimeout(previousTimer);
+            const timer = setTimeout(() => {
+                pausedRecommendationTracks.delete(track);
+                recommendationResumeTimers.delete(track);
+            }, delay);
+            recommendationResumeTimers.set(track, timer);
+        }
+
         document.querySelectorAll(".bestseller-track").forEach(track => {
-            track.addEventListener("mouseenter", () => pausedRecommendationTracks.add(track));
-            track.addEventListener("mouseleave", () => pausedRecommendationTracks.delete(track));
-            track.addEventListener("focusin", () => pausedRecommendationTracks.add(track));
-            track.addEventListener("focusout", () => pausedRecommendationTracks.delete(track));
-            track.addEventListener("touchstart", () => pausedRecommendationTracks.add(track), {passive: true});
-            track.addEventListener("touchend", () => pausedRecommendationTracks.delete(track), {passive: true});
+            track.addEventListener("pointerdown", () => pauseRecommendationTrackBriefly(track, 3200));
+            track.addEventListener("pointerup", () => pauseRecommendationTrackBriefly(track));
+            track.addEventListener("wheel", () => pauseRecommendationTrackBriefly(track), {passive: true});
+            track.addEventListener("focusin", () => pauseRecommendationTrackBriefly(track, 3200));
         });
 
         async function searchBooks() {
